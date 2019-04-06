@@ -108,7 +108,7 @@ class Polygon extends Shape {
 
 		for (let i=1;i<count;i++) {
 			let angle = Math.random() * 2 * Math.PI;
-			let radius = Math.random() * 20;
+			let radius = Math.random() * 100; // originaly, this constant was 20
 			points.push([
 				first[0] + ~~(radius * Math.cos(angle)),
 				first[1] + ~~(radius * Math.sin(angle))

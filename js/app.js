@@ -284,7 +284,15 @@ class Canvas {
 		this.ctx.fillStyle = color;
 		this.ctx.fillRect(0, 0, this.node.width, this.node.height);
 		return this;
-	}
+    }
+    
+    replaceWithOther(canvas){
+        let alphaStored = this.ctx.globalAlpha;
+        this.ctx.globalAlpha = 1;
+        this.fill( "#000" );
+        this.ctx.drawImage( canvas.node, 0, 0 );
+        this.ctx.globalAlpha = alphaStored;
+    }
 
 	getImageData() {
 		if (!this._imageData) {
@@ -310,7 +318,7 @@ class Canvas {
 		this.ctx.fillStyle = step.color;
 		step.shape.render(this.ctx);
 		return this;
-	}
+    }
 }
 
 class Shape {
@@ -419,7 +427,7 @@ class Polygon extends Shape {
 
 		for (let i=1;i<count;i++) {
 			let angle = Math.random() * 2 * Math.PI;
-			let radius = Math.random() * 20;
+			let radius = Math.random() * 100; // originaly, this constant was 20
 			points.push([
 				first[0] + ~~(radius * Math.cos(angle)),
 				first[1] + ~~(radius * Math.sin(angle))
@@ -685,9 +693,9 @@ function getConfig() {
 /* State: target canvas, current canvas and a distance value */
 class State {
 	constructor(target, canvas, distance = Infinity) {
-		this.target = target;
-		this.canvas = canvas;
-		this.distance = (distance == Infinity ? target.distance(canvas) : distance);
+		this.target = target; // the originalCanvas
+		this.canvas = canvas; // the targetCanvas (used for SSIM calculations)
+		this.distance = (distance == Infinity ? target.distance(canvas) : distance); // SSIM similarity metric 
 	}
 }
 
@@ -748,12 +756,21 @@ class Step {
 }
 
 class Optimizer {
-	constructor(original, cfg) {
+	constructor(originalCanvas, cfg) {
 		this.cfg = cfg;
-		this.state = new State(original, Canvas.empty(cfg));
+		this.state = new State(originalCanvas, Canvas.empty(cfg));
 		this._steps = 0;
 		this.onStep = () => {};
-		console.log("initial distance %s", this.state.distance);
+        console.log("initial distance %s", this.state.distance);
+        
+        this.DEBUGGING = true;
+        this.debugConfig = {};
+        this.debugConfig.mutationTimeout = 10;
+        this.debugConfig.phase1Timeout = 10;
+        this.onDebugPhase1Step = () => {};
+        this.onDebugMutationStep = () => {};
+        this.debugState = new State(this.state.canvas, Canvas.empty(cfg));
+        this.debugState.currentReferenceTarget = this.debugState.target;
 	}
 
 	start() {
@@ -762,12 +779,27 @@ class Optimizer {
 	}
 
 	_addShape() {
+
+        // Algorithm has 2 phases:
+        // Phase 1: (findBestStep)
+        // -------
+        // generate an amount of steps (default = 200)
+        // for each, check if they improve the visual similarity between the generated (target) and original image
+        // return only the best result (lowest distance between original and generated)
+        // 
+        // Phase 2: (optimizeStep)
+        // --------
+        // For the result found in Phase 1, we try to permutate it, to see if we can get it to fit even better
+        // We stop these permutations only when after a set limit of tries (default = 30), we have failed to improve the result (no mutated steps had lower distance)
+
 		this._findBestStep().then(step => this._optimizeStep(step)).then(step => {
 			this._steps++;
 			if (step.distance < this.state.distance) { /* better than current state, epic */
 				this.state = step.apply(this.state);
 				console.log("switched to new state (%s) with distance: %s", this._steps, this.state.distance);
-				this.onStep(step);
+                this.onStep(step);
+                
+                this.debugState.currentReferenceTarget = this.state.canvas;
 			} else { /* worse than current state, discard */
 				this.onStep(null);
 			}
@@ -787,23 +819,64 @@ class Optimizer {
 	}
 
 	_findBestStep() {
-		const LIMIT = this.cfg.shapes;
+		const LIMIT = this.cfg.shapes; // amount of shapes per-step (default: 200)
 
-		let bestStep = null;
-		let promises = [];
+        let bestStep = null;
+        
+        // normally, we can generate these first shapes in parallel, they don't depend on each other
+        // for debugging however, we want to watch them one by one, so we have to generate them separately
+        if( !this.DEBUGGING ){
 
-		for (let i=0;i<LIMIT;i++) {
-			let shape = Shape.create(this.cfg);
+            let promises = [];
 
-			let promise = new Step(shape, this.cfg).compute(this.state).then(step => {
-				if (!bestStep || step.distance < bestStep.distance) {
-					bestStep = step;
-				}
-			});
-			promises.push(promise);
-		}
+            for (let i=0;i<LIMIT;i++) {
+                let shape = Shape.create(this.cfg);
 
-		return Promise.all(promises).then(() => bestStep);
+                let promise = new Step(shape, this.cfg).compute(this.state).then(step => {
+
+                    this.onDebugPhase1Step( step );
+
+                    if (!bestStep || step.distance < bestStep.distance) {
+                        bestStep = step;
+                    }
+                });
+                promises.push(promise);
+            }
+
+            return Promise.all(promises).then(() => bestStep);
+        }
+        else{ // debugging
+
+            let resolve = null;
+            let resolver = new Promise(r => resolve = r);
+        
+            let generatedSteps = 0;
+            let generateStep = () => {
+
+                let shape = Shape.create(this.cfg);
+                new Step(shape, this.cfg).compute(this.state).then(step => {
+
+                    ++generatedSteps;
+                    this.onDebugPhase1Step( step, this.debugState.currentReferenceTarget );
+                    if( bestStep )
+                        console.log("Phase1step : ", step.distance, bestStep.distance, Math.abs(bestStep.distance - step.distance));    
+
+                    if (!bestStep || step.distance < bestStep.distance) {
+                        bestStep = step;
+                    }
+
+
+                    if( generatedSteps >= LIMIT )
+                        resolve(bestStep);
+                    else
+                        setTimeout(() => generateStep(), this.debugConfig.phase1Timeout);
+
+                });
+            };
+
+            generateStep();
+            return resolver;
+        }
 	}
 
 	_optimizeStep(step) {
@@ -818,21 +891,25 @@ class Optimizer {
 
 		let tryMutation = () => {
 			if (failedAttempts >= LIMIT) {
-				console.log("mutation optimized distance from %s to %s in (%s good, %s total) attempts", arguments[0].distance, bestStep.distance, successAttempts, totalAttempts);
+                console.log("mutation optimized distance from %s to %s in (%s good, %s total) attempts", arguments[0].distance, bestStep.distance, successAttempts, totalAttempts);
 				return resolve(bestStep);
 			}
 
 			totalAttempts++;
 			bestStep.mutate().compute(this.state).then(mutatedStep => {
+
+                this.onDebugMutationStep( mutatedStep, this.debugState.currentReferenceTarget );
+
 				if (mutatedStep.distance < bestStep.distance) { /* success */
 					successAttempts++;
-					failedAttempts = 0;
+					failedAttempts = 0; // we stop when we've had LIMIT failedAttempts in a row. If even 1 in there improved, we try 30 times again 
 					bestStep = mutatedStep;
 				} else { /* failure */
 					failedAttempts++;
 				}
 				
-				tryMutation();
+			    setTimeout(() => tryMutation(), this.debugConfig.mutationTimeout);
+				//tryMutation();
 			});
 		};
 
@@ -842,11 +919,14 @@ class Optimizer {
 	}
 }
 
+// these are just the output nodes on the bottom of the page, not the input switches
 const nodes = {
 	output: document.querySelector("#output"),
 	original: document.querySelector("#original"),
 	steps: document.querySelector("#steps"),
-	raster: document.querySelector("#raster"),
+    raster: document.querySelector("#raster"),
+    debugPhase1Canvas: document.querySelector("#debugPhase1Canvas"),
+    debugMutationCanvas: document.querySelector("#debugMutationCanvas"),
 	vector: document.querySelector("#vector"),
 	vectorText: document.querySelector("#vector-text"),
 	types: Array.from(document.querySelectorAll("#output [name=type]"))
@@ -854,42 +934,78 @@ const nodes = {
 
 let steps;
 
-function go(original, cfg) {
-	lock();
+function go(originalCanvas, cfg) {
+    lock();
+    
+    console.log("ROBIN SAYS GOOOO!");
 
 	nodes.steps.innerHTML = "";
 	nodes.original.innerHTML = "";
-	nodes.raster.innerHTML = "";
+    nodes.raster.innerHTML = "";
+    nodes.debugPhase1Canvas.innerHTML = "";
+    nodes.debugMutationCanvas.innerHTML = "";
 	nodes.vector.innerHTML = "";
 	nodes.vectorText.value = "";
 
 	nodes.output.style.display = "";
-	nodes.original.appendChild(original.node);
+	nodes.original.appendChild(originalCanvas.node);
 
-	let optimizer = new Optimizer(original, cfg);
-	steps = 0;
+	let optimizer = new Optimizer(originalCanvas, cfg);
+    steps = 0;
+    
+    console.log(`Scaling to ${cfg.scale}`);
 
 	let cfg2 = Object.assign({}, cfg, {width:cfg.scale*cfg.width, height:cfg.scale*cfg.height});
-	let result = Canvas.empty(cfg2, false);
-	result.ctx.scale(cfg.scale, cfg.scale);
-	nodes.raster.appendChild(result.node);
+	let rasterCanvas = Canvas.empty(cfg2, false);
+	rasterCanvas.ctx.scale(cfg.scale, cfg.scale);
+	nodes.raster.appendChild(rasterCanvas.node);
 
-	let svg = Canvas.empty(cfg, true);
-	svg.setAttribute("width", cfg2.width);
-	svg.setAttribute("height", cfg2.height);
-	nodes.vector.appendChild(svg);
+	let svgCanvas = Canvas.empty(cfg, true);
+	svgCanvas.setAttribute("width", cfg2.width);
+	svgCanvas.setAttribute("height", cfg2.height);
+    nodes.vector.appendChild(svgCanvas);
+    
+    let debugPhase1Canvas = Canvas.empty(cfg2, false);
+	debugPhase1Canvas.ctx.scale(cfg.scale, cfg.scale);
+	nodes.debugPhase1Canvas.appendChild(debugPhase1Canvas.node);
+    let debugMutationCanvas = Canvas.empty(cfg2, false);
+	debugMutationCanvas.ctx.scale(cfg.scale, cfg.scale);
+	nodes.debugMutationCanvas.appendChild(debugMutationCanvas.node);
 
 	let serializer = new XMLSerializer();
 
+    // optimizer generates step definitions, here we actually draw them
+    // it is very unclear to me why we are rendering to both raster and svg canvases though...
 	optimizer.onStep = (step) => {
 		if (step) {
-			result.drawStep(step);
-			svg.appendChild(step.toSVG());
+			rasterCanvas.drawStep(step);
+			svgCanvas.appendChild(step.toSVG());
 			let percent = (100*(1-step.distance)).toFixed(2);
-			nodes.vectorText.value = serializer.serializeToString(svg);
+			nodes.vectorText.value = serializer.serializeToString(svgCanvas);
 			nodes.steps.innerHTML = `(${++steps} of ${cfg.steps}, ${percent}% similar)`;
-		}
+        }
+        else
+            console.error("app:onStep : no step given... is this really an error though? ", step);
+    };
+    
+	optimizer.onDebugPhase1Step = (step, referenceCanvas) => {
+		if (step) {
+            debugPhase1Canvas.replaceWithOther( referenceCanvas );
+			debugPhase1Canvas.drawStep(step);
+        }
+        else
+            console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
 	};
+
+	optimizer.onDebugMutationStep = (step, referenceCanvas) => {
+		if (step) {
+            debugMutationCanvas.replaceWithOther( referenceCanvas );
+			debugMutationCanvas.drawStep(step);
+        }
+        else
+            console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
+	};
+
 	optimizer.start();
 
 	document.documentElement.scrollTop = document.documentElement.scrollHeight;
@@ -911,8 +1027,11 @@ function onSubmit(e) {
 
 	let cfg = getConfig();
 
-	Canvas.original(url, cfg).then(original => go(original, cfg));
+	Canvas.original(url, cfg).then(originalCanvas => go(originalCanvas, cfg));
 }
+
+
+
 
 function init$$1() {
 	nodes.output.style.display = "none";

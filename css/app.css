@@ -85,10 +85,6 @@ form [type=submit] {
 #output > div {
   float: left;
 }
-#output:not(.raster) .raster,
-#output:not(.vector) .vector {
-  display: none;
-}
 #output textarea {
   margin-top: 0.5em;
   width: 100%;

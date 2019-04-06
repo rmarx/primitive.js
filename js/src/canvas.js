@@ -151,7 +151,15 @@ export default class Canvas {
 		this.ctx.fillStyle = color;
 		this.ctx.fillRect(0, 0, this.node.width, this.node.height);
 		return this;
-	}
+    }
+    
+    replaceWithOther(canvas){
+        let alphaStored = this.ctx.globalAlpha;
+        this.ctx.globalAlpha = 1;
+        this.fill( "#000" );
+        this.ctx.drawImage( canvas.node, 0, 0 );
+        this.ctx.globalAlpha = alphaStored;
+    }
 
 	getImageData() {
 		if (!this._imageData) {
@@ -177,5 +185,5 @@ export default class Canvas {
 		this.ctx.fillStyle = step.color;
 		step.shape.render(this.ctx);
 		return this;
-	}
+    }
 }
