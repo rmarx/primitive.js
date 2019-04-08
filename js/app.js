@@ -321,9 +321,23 @@ class Canvas {
     }
 }
 
+/* Shape: a geometric primitive with a bbox */
 class Shape {
 	static randomPoint(width, height) {
-		return [~~(Math.random()*width), ~~(Math.random()*height)];
+        // ~~ is a faster replacement for Math.floor 
+        let leftEdge = width * 0.40;
+        let rightEdge = width * 0.60;
+        width = (Math.random()*(rightEdge - leftEdge)) + leftEdge; // between leftEdge and rightEdge
+
+        // y 0 is at the TOP, not bottom, so inverse logic 
+        let topEdge = height * 0.15; // should be the shorter one 
+        let bottomEdge = height * 0.25;
+        height = (Math.random()*(bottomEdge - topEdge)) + topEdge;
+
+        console.log("RANDOM POINT ", leftEdge, rightEdge, width, height);
+
+        return [~~width, ~~height];
+		//return [~~(Math.random()*width), ~~(Math.random()*height)];
 	}
 
 	static create(cfg) {
@@ -427,7 +441,7 @@ class Polygon extends Shape {
 
 		for (let i=1;i<count;i++) {
 			let angle = Math.random() * 2 * Math.PI;
-			let radius = Math.random() * 100; // originaly, this constant was 20
+			let radius = Math.random() * 20;//100; // originaly, this constant was 20
 			points.push([
 				first[0] + ~~(radius * Math.cos(angle)),
 				first[1] + ~~(radius * Math.sin(angle))
@@ -763,10 +777,10 @@ class Optimizer {
 		this.onStep = () => {};
         console.log("initial distance %s", this.state.distance);
         
-        this.DEBUGGING = true;
+        this.DEBUGGING = false;
         this.debugConfig = {};
-        this.debugConfig.mutationTimeout = 10;
-        this.debugConfig.phase1Timeout = 10;
+        this.debugConfig.phase1Timeout = 1;
+        this.debugConfig.mutationTimeout = 1;
         this.onDebugPhase1Step = () => {};
         this.onDebugMutationStep = () => {};
         this.debugState = new State(this.state.canvas, Canvas.empty(cfg));
@@ -834,8 +848,6 @@ class Optimizer {
 
                 let promise = new Step(shape, this.cfg).compute(this.state).then(step => {
 
-                    this.onDebugPhase1Step( step );
-
                     if (!bestStep || step.distance < bestStep.distance) {
                         bestStep = step;
                     }
@@ -858,6 +870,7 @@ class Optimizer {
 
                     ++generatedSteps;
                     this.onDebugPhase1Step( step, this.debugState.currentReferenceTarget );
+                    
                     if( bestStep )
                         console.log("Phase1step : ", step.distance, bestStep.distance, Math.abs(bestStep.distance - step.distance));    
 
@@ -866,8 +879,10 @@ class Optimizer {
                     }
 
 
-                    if( generatedSteps >= LIMIT )
+                    if( generatedSteps >= LIMIT ){
+                        this.onDebugPhase1Step( bestStep, this.debugState.currentReferenceTarget );
                         resolve(bestStep);
+                    }
                     else
                         setTimeout(() => generateStep(), this.debugConfig.phase1Timeout);
 
@@ -898,7 +913,8 @@ class Optimizer {
 			totalAttempts++;
 			bestStep.mutate().compute(this.state).then(mutatedStep => {
 
-                this.onDebugMutationStep( mutatedStep, this.debugState.currentReferenceTarget );
+                if( this.DEBUGGING )
+                    this.onDebugMutationStep( mutatedStep, this.debugState.currentReferenceTarget );
 
 				if (mutatedStep.distance < bestStep.distance) { /* success */
 					successAttempts++;
@@ -908,8 +924,10 @@ class Optimizer {
 					failedAttempts++;
 				}
 				
-			    setTimeout(() => tryMutation(), this.debugConfig.mutationTimeout);
-				//tryMutation();
+                if( this.DEBUGGING )
+			        setTimeout(() => tryMutation(), this.debugConfig.mutationTimeout);
+                else
+                    tryMutation();
 			});
 		};
 
@@ -919,7 +937,6 @@ class Optimizer {
 	}
 }
 
-// these are just the output nodes on the bottom of the page, not the input switches
 const nodes = {
 	output: document.querySelector("#output"),
 	original: document.querySelector("#original"),

@@ -11,10 +11,10 @@ export default class Optimizer {
 		this.onStep = () => {};
         console.log("initial distance %s", this.state.distance);
         
-        this.DEBUGGING = true;
+        this.DEBUGGING = false;
         this.debugConfig = {};
-        this.debugConfig.mutationTimeout = 10;
-        this.debugConfig.phase1Timeout = 10;
+        this.debugConfig.phase1Timeout = 1;
+        this.debugConfig.mutationTimeout = 1;
         this.onDebugPhase1Step = () => {};
         this.onDebugMutationStep = () => {};
         this.debugState = new State(this.state.canvas, Canvas.empty(cfg));
@@ -82,8 +82,6 @@ export default class Optimizer {
 
                 let promise = new Step(shape, this.cfg).compute(this.state).then(step => {
 
-                    this.onDebugPhase1Step( step );
-
                     if (!bestStep || step.distance < bestStep.distance) {
                         bestStep = step;
                     }
@@ -106,6 +104,7 @@ export default class Optimizer {
 
                     ++generatedSteps;
                     this.onDebugPhase1Step( step, this.debugState.currentReferenceTarget );
+                    
                     if( bestStep )
                         console.log("Phase1step : ", step.distance, bestStep.distance, Math.abs(bestStep.distance - step.distance));    
 
@@ -114,8 +113,10 @@ export default class Optimizer {
                     }
 
 
-                    if( generatedSteps >= LIMIT )
+                    if( generatedSteps >= LIMIT ){
+                        this.onDebugPhase1Step( bestStep, this.debugState.currentReferenceTarget );
                         resolve(bestStep);
+                    }
                     else
                         setTimeout(() => generateStep(), this.debugConfig.phase1Timeout);
 
@@ -146,7 +147,8 @@ export default class Optimizer {
 			totalAttempts++;
 			bestStep.mutate().compute(this.state).then(mutatedStep => {
 
-                this.onDebugMutationStep( mutatedStep, this.debugState.currentReferenceTarget );
+                if( this.DEBUGGING )
+                    this.onDebugMutationStep( mutatedStep, this.debugState.currentReferenceTarget );
 
 				if (mutatedStep.distance < bestStep.distance) { /* success */
 					successAttempts++;
@@ -156,8 +158,10 @@ export default class Optimizer {
 					failedAttempts++;
 				}
 				
-			    setTimeout(() => tryMutation(), this.debugConfig.mutationTimeout);
-				//tryMutation();
+                if( this.DEBUGGING )
+			        setTimeout(() => tryMutation(), this.debugConfig.mutationTimeout);
+                else
+                    tryMutation();
 			});
 		}
 
