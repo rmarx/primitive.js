@@ -324,20 +324,7 @@ class Canvas {
 /* Shape: a geometric primitive with a bbox */
 class Shape {
 	static randomPoint(width, height) {
-        // ~~ is a faster replacement for Math.floor 
-        let leftEdge = width * 0.40;
-        let rightEdge = width * 0.60;
-        width = (Math.random()*(rightEdge - leftEdge)) + leftEdge; // between leftEdge and rightEdge
-
-        // y 0 is at the TOP, not bottom, so inverse logic 
-        let topEdge = height * 0.15; // should be the shorter one 
-        let bottomEdge = height * 0.25;
-        height = (Math.random()*(bottomEdge - topEdge)) + topEdge;
-
-        console.log("RANDOM POINT ", leftEdge, rightEdge, width, height);
-
-        return [~~width, ~~height];
-		//return [~~(Math.random()*width), ~~(Math.random()*height)];
+        return [~~(Math.random()*width), ~~(Math.random()*height)];
 	}
 
 	static create(cfg) {
