@@ -2,6 +2,7 @@ import * as ui from "./ui.js";
 import Canvas from "./canvas.js";
 import Optimizer from "./optimizer.js";
 import {Polygon} from "./shape.js";
+//import * as JSZip from "jszip";
 
 // these are just the output nodes on the bottom of the page, not the input switches
 const nodes = {
@@ -95,12 +96,39 @@ function go(originalCanvas, cfg) {
 	}
 
 	optimizer.onSaliencyKnown = (saliencyPolygons) => {
-		let p = new Polygon(2000, 2000, saliencyPolygons, saliencyPolygons[0].points.length);
-		p.points = saliencyPolygons[0].points;
-		p.computeBbox();
-		debugMutationCanvas.ctx.fillStyle = "#FF0000";
 
-		p.render( debugMutationCanvas.ctx );
+		for( let polygon of saliencyPolygons ){
+			let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
+			p.points = polygon.points;
+			p.computeBbox();
+			debugMutationCanvas.ctx.fillStyle = "#FF0000";
+
+			p.render( debugMutationCanvas.ctx );
+		}
+
+	}
+
+	optimizer.onDone = () => {
+		console.log("Done, putting it in localStorage!");
+
+		localStorage.setItem('robinTestdeDingen', document.getElementById("vector-text").value);
+
+		let zip = new JSZip();
+
+		let contents = localStorage.getItem("robinTestdeDingen");
+		zip.file("test2.svg", contents );
+
+		zip.generateAsync({type:"blob"}).then(function (blob) {
+			
+			let link = document.createElement('a');
+			link.href = window.URL.createObjectURL( blob );
+			link.download = "total.zip";
+
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			
+		});
 	}
 
 	optimizer.start();

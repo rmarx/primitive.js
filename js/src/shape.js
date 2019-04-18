@@ -10,27 +10,33 @@ export class Shape {
 
 		// note: this is also called when mutating. It never has saliency set then
 		// however, that's just because it's called in the ctor : overridden immediately afterwards
-		if( this.saliencyAreas /*&& (Math.random() > 0.01)*/ ){
-			//console.log("Taking into account saliency!", this.saliencyAreas);
+		if( this.saliency && (Math.random() < this.saliency.bias) ){
 
+			let saliencyAreas = this.saliency.boundingShapes;
 			// Note: we do all the logic here because it's easiest to implement
 			// in a decent framework, we would abstract this out, but we don't plan to keep on using this anyway, so...
 
 			// for now, we just use the axis-aligned bounding box. 
 			// Since we do a bit of mutating anyways, this should work well enough.
+
+			// we can have multiple salient areas: choose one at random
+			// length = 1: floor to 0, length = 2: floor to 0 or 1 etc.
+			let rectIndex = ~~(Math.random() * saliencyAreas.length);
+
 			
 			// BEWARE: saliencyAreas is shared by ALL generated shapes! 
-			if( !this.saliencyAreas[0].bbox ){
+			if( !saliencyAreas[rectIndex].bbox ){
+				console.log("Generating saliency BBOX, should only happen once for each salient area!");
 				let min = [
-					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[0]), Infinity),
-					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[1]), Infinity)
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.min(v, p[0]), Infinity),
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.min(v, p[1]), Infinity)
 				];
 				let max = [
-					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[0]), -Infinity),
-					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[1]), -Infinity)
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.max(v, p[0]), -Infinity),
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.max(v, p[1]), -Infinity)
 				];
 		
-				this.saliencyAreas[0].bbox = {
+				saliencyAreas[rectIndex].bbox = {
 					left: min[0],
 					top: min[1],
 					width: (max[0]-min[0]) || 1, /* fallback for deformed shapes */
@@ -38,8 +44,8 @@ export class Shape {
 				};
 			}
 
-			let x = this.saliencyAreas[0].bbox.left + Math.random()*this.saliencyAreas[0].bbox.width;
-			let y = this.saliencyAreas[0].bbox.top + Math.random()*this.saliencyAreas[0].bbox.height;
+			let x = saliencyAreas[rectIndex].bbox.left + Math.random()*saliencyAreas[rectIndex].bbox.width;
+			let y = saliencyAreas[rectIndex].bbox.top + Math.random()*saliencyAreas[rectIndex].bbox.height;
 
 			++window.DEBUGsalientCount;
 			return [~~x, ~~y];
@@ -48,6 +54,7 @@ export class Shape {
 			// no saliency info known: just random for the entire image 
 			// ~~ is a faster replacement for Math.floor 
 			++window.DEBUGrandomCount;
+			//console.trace("Random point without saliency, what madness is this?!?");
 			return [~~(Math.random()*width), ~~(Math.random()*height)];
 		}
 
@@ -74,15 +81,12 @@ export class Shape {
 		let index = Math.floor(Math.random() * ctors.length);
 		let ctor = ctors[index];
 
-		let saliencyAreas = cfg.saliency.boundingShapes;
-		let saliencyPhase = cfg.saliency.phase;
-
-		return new ctor(cfg.width, cfg.height, saliencyAreas);
+		return new ctor(cfg.width, cfg.height, cfg.saliency);
 	}
 
-	constructor(w, h, saliencyAreas) {
+	constructor(w, h, saliency) {
 		this.bbox = {};
-		this.saliencyAreas = saliencyAreas;
+		this.saliency = saliency;
 	}
 
 	mutate(cfg) { return this; }
@@ -104,11 +108,13 @@ export class Shape {
 }
 
 export class Polygon extends Shape {
-	constructor(w, h, saliencyAreas, count) {
-		super(w, h, saliencyAreas);
-
-		this.points = this._createPoints(w, h, count);
-		this.computeBbox();
+	constructor(w, h, saliency, count) {
+		super(w, h, saliency);
+		
+		if( count != 0 ){
+			this.points = this._createPoints(w, h, count);
+			this.computeBbox();
+		}
 	}
 
 	render(ctx) {
@@ -135,7 +141,7 @@ export class Polygon extends Shape {
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0);
+		let clone = new this.constructor(0, 0, this.saliency, 0);
 		clone.points = this.points.map(point => point.slice());
 
 		let index = Math.floor(Math.random() * this.points.length);
@@ -186,18 +192,18 @@ export class Polygon extends Shape {
 }
 
 export class Triangle extends Polygon {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas, 3);
+	constructor(w, h, saliency) {
+		super(w, h, saliency, 3);
 	}
 }
 
 export class Rectangle extends Polygon {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas, 4);
+	constructor(w, h, saliency) {
+		super(w, h, saliency, 4);
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0);
+		let clone = new this.constructor(0, 0, this.saliency, 0);
 		clone.points = this.points.map(point => point.slice());
 
 		let amount = ~~((Math.random()-0.5) * 20);
@@ -243,8 +249,8 @@ export class Rectangle extends Polygon {
 }
 
 export class Ellipse extends Shape {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas);
+	constructor(w, h, saliency) {
+		super(w, h, saliency);
 
 		this.center = this.randomPoint(w, h);
 		this.rx = 1 + ~~(Math.random() * 20);
@@ -269,7 +275,7 @@ export class Ellipse extends Shape {
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0);
+		let clone = new this.constructor(0, 0, this.saliency);
 		clone.center = this.center.slice();
 		clone.rx = this.rx;
 		clone.ry = this.ry;
@@ -308,8 +314,8 @@ export class Ellipse extends Shape {
 }
 
 export class Smiley extends Shape {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas);
+	constructor(w, h, saliency) {
+		super(w, h, saliency);
 		this.center = this.randomPoint(w, h);
 		this.text = "☺";
 		this.fontSize = 16;
@@ -338,7 +344,7 @@ export class Smiley extends Shape {
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0)
+		let clone = new this.constructor(0, 0, this.saliency)
 		clone.center = this.center.slice();
 		clone.fontSize = this.fontSize;
 
@@ -375,8 +381,8 @@ export class Smiley extends Shape {
 }
 
 export class Debug extends Shape {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas);
+	constructor(w, h, saliency) {
+		super(w, h, saliency);
 		this.bbox = {left: 0, top: 0, width:w, height: h};
 	}
 

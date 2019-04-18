@@ -79,7 +79,8 @@ export function getConfig() {
 	document.getElementById("debugMutationCanvas").style.display = cfg.DEBUGGING ? "block" : "none";
 
 	cfg.saliency = {};
-	cfg.saliency.phase = 0;
+	cfg.saliency.bias = 0; // in percentage, how many shapes MUST originate within the salient areas
+	// e.g., if 0: totally random. if 1: everything from salient areas, if 0.8: 80% will start in salient zone
 	cfg.saliency.boundingShapes = [];  
 	// for now, hardcoded on pexels/1a2b89987b488d73140e70db8360a804e3302b37abb4af0a8d0f9800749788f8.json
 	/*
@@ -123,6 +124,28 @@ export function getConfig() {
 			[
 				3309,
 				857 + 731
+			]
+		]
+	});
+	
+
+	cfg.saliency.boundingShapes.push({
+		"points": [
+			[
+				3309 - (730 * 0.2),
+				857 - (857 * 0.2)
+			],
+			[
+				3309 - (730 * 0.2) + (730 * 1.4),
+				857 - (731 * 0.2)
+			],
+			[
+				3309 - (730 * 0.2) + (730 * 1.4),
+				857 - (731 * 0.2) + (731 * 1.4)
+			],
+			[
+				3309 - (730 * 0.2),
+				857 - (731 * 0.2) + (731 * 1.4)
 			]
 		]
 	});

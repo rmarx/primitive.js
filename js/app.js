@@ -3,16 +3,6 @@
 
 const SVGNS = "http://www.w3.org/2000/svg";
 
-(function() {
-	const values = [.5, .7, .1, .2, .8, .4, .9, .3, .6, .01, .99, .68, .38, .18, .77, .91, .53, .22, .47];
-	function r() {
-		r.seed++;
-		return values[r.seed % values.length];
-	}
-	r.seed = 0;
-//	Math.random = r;
-})();
-
 function clamp(x, min, max) {
 	return Math.max(min, Math.min(max, x));
 }
@@ -331,27 +321,33 @@ class Shape {
 
 		// note: this is also called when mutating. It never has saliency set then
 		// however, that's just because it's called in the ctor : overridden immediately afterwards
-		if( this.saliencyAreas /*&& (Math.random() > 0.01)*/ ){
-			//console.log("Taking into account saliency!", this.saliencyAreas);
+		if( this.saliency && (Math.random() < this.saliency.bias) ){
 
+			let saliencyAreas = this.saliency.boundingShapes;
 			// Note: we do all the logic here because it's easiest to implement
 			// in a decent framework, we would abstract this out, but we don't plan to keep on using this anyway, so...
 
 			// for now, we just use the axis-aligned bounding box. 
 			// Since we do a bit of mutating anyways, this should work well enough.
+
+			// we can have multiple salient areas: choose one at random
+			// length = 1: floor to 0, length = 2: floor to 0 or 1 etc.
+			let rectIndex = ~~(Math.random() * saliencyAreas.length);
+
 			
 			// BEWARE: saliencyAreas is shared by ALL generated shapes! 
-			if( !this.saliencyAreas[0].bbox ){
+			if( !saliencyAreas[rectIndex].bbox ){
+				console.log("Generating saliency BBOX, should only happen once for each salient area!");
 				let min = [
-					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[0]), Infinity),
-					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[1]), Infinity)
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.min(v, p[0]), Infinity),
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.min(v, p[1]), Infinity)
 				];
 				let max = [
-					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[0]), -Infinity),
-					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[1]), -Infinity)
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.max(v, p[0]), -Infinity),
+					saliencyAreas[rectIndex].points.reduce((v, p) => Math.max(v, p[1]), -Infinity)
 				];
 		
-				this.saliencyAreas[0].bbox = {
+				saliencyAreas[rectIndex].bbox = {
 					left: min[0],
 					top: min[1],
 					width: (max[0]-min[0]) || 1, /* fallback for deformed shapes */
@@ -359,8 +355,8 @@ class Shape {
 				};
 			}
 
-			let x = this.saliencyAreas[0].bbox.left + Math.random()*this.saliencyAreas[0].bbox.width;
-			let y = this.saliencyAreas[0].bbox.top + Math.random()*this.saliencyAreas[0].bbox.height;
+			let x = saliencyAreas[rectIndex].bbox.left + Math.random()*saliencyAreas[rectIndex].bbox.width;
+			let y = saliencyAreas[rectIndex].bbox.top + Math.random()*saliencyAreas[rectIndex].bbox.height;
 
 			++window.DEBUGsalientCount;
 			return [~~x, ~~y];
@@ -369,6 +365,7 @@ class Shape {
 			// no saliency info known: just random for the entire image 
 			// ~~ is a faster replacement for Math.floor 
 			++window.DEBUGrandomCount;
+			//console.trace("Random point without saliency, what madness is this?!?");
 			return [~~(Math.random()*width), ~~(Math.random()*height)];
 		}
 
@@ -395,15 +392,12 @@ class Shape {
 		let index = Math.floor(Math.random() * ctors.length);
 		let ctor = ctors[index];
 
-		let saliencyAreas = cfg.saliency.boundingShapes;
-		let saliencyPhase = cfg.saliency.phase;
-
-		return new ctor(cfg.width, cfg.height, saliencyAreas);
+		return new ctor(cfg.width, cfg.height, cfg.saliency);
 	}
 
-	constructor(w, h, saliencyAreas) {
+	constructor(w, h, saliency) {
 		this.bbox = {};
-		this.saliencyAreas = saliencyAreas;
+		this.saliency = saliency;
 	}
 
 	mutate(cfg) { return this; }
@@ -425,11 +419,13 @@ class Shape {
 }
 
 class Polygon extends Shape {
-	constructor(w, h, saliencyAreas, count) {
-		super(w, h, saliencyAreas);
-
-		this.points = this._createPoints(w, h, count);
-		this.computeBbox();
+	constructor(w, h, saliency, count) {
+		super(w, h, saliency);
+		
+		if( count != 0 ){
+			this.points = this._createPoints(w, h, count);
+			this.computeBbox();
+		}
 	}
 
 	render(ctx) {
@@ -456,7 +452,7 @@ class Polygon extends Shape {
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0);
+		let clone = new this.constructor(0, 0, this.saliency, 0);
 		clone.points = this.points.map(point => point.slice());
 
 		let index = Math.floor(Math.random() * this.points.length);
@@ -507,18 +503,18 @@ class Polygon extends Shape {
 }
 
 class Triangle extends Polygon {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas, 3);
+	constructor(w, h, saliency) {
+		super(w, h, saliency, 3);
 	}
 }
 
 class Rectangle extends Polygon {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas, 4);
+	constructor(w, h, saliency) {
+		super(w, h, saliency, 4);
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0);
+		let clone = new this.constructor(0, 0, this.saliency, 0);
 		clone.points = this.points.map(point => point.slice());
 
 		let amount = ~~((Math.random()-0.5) * 20);
@@ -564,8 +560,8 @@ class Rectangle extends Polygon {
 }
 
 class Ellipse extends Shape {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas);
+	constructor(w, h, saliency) {
+		super(w, h, saliency);
 
 		this.center = this.randomPoint(w, h);
 		this.rx = 1 + ~~(Math.random() * 20);
@@ -590,7 +586,7 @@ class Ellipse extends Shape {
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0);
+		let clone = new this.constructor(0, 0, this.saliency);
 		clone.center = this.center.slice();
 		clone.rx = this.rx;
 		clone.ry = this.ry;
@@ -629,8 +625,8 @@ class Ellipse extends Shape {
 }
 
 class Smiley extends Shape {
-	constructor(w, h, saliencyAreas) {
-		super(w, h, saliencyAreas);
+	constructor(w, h, saliency) {
+		super(w, h, saliency);
 		this.center = this.randomPoint(w, h);
 		this.text = "☺";
 		this.fontSize = 16;
@@ -659,7 +655,7 @@ class Smiley extends Shape {
 	}
 
 	mutate(cfg) {
-		let clone = new this.constructor(0, 0);
+		let clone = new this.constructor(0, 0, this.saliency);
 		clone.center = this.center.slice();
 		clone.fontSize = this.fontSize;
 
@@ -716,16 +712,10 @@ function fixRange(range) {
 	sync();
 }
 
-function init$1() {
+function init() {
 	let ranges = document.querySelectorAll("[type=range]");
 	Array.from(ranges).forEach(fixRange);
 }
-
-function lock() {
-	/* fixme */
-}
-
-
 
 function getConfig() {
 	let form = document.querySelector("form");
@@ -764,7 +754,8 @@ function getConfig() {
 	document.getElementById("debugMutationCanvas").style.display = cfg.DEBUGGING ? "block" : "none";
 
 	cfg.saliency = {};
-	cfg.saliency.phase = 0;
+	cfg.saliency.bias = 0; // in percentage, how many shapes MUST originate within the salient areas
+	// e.g., if 0: totally random. if 1: everything from salient areas, if 0.8: 80% will start in salient zone
 	cfg.saliency.boundingShapes = [];  
 	// for now, hardcoded on pexels/1a2b89987b488d73140e70db8360a804e3302b37abb4af0a8d0f9800749788f8.json
 	/*
@@ -811,6 +802,28 @@ function getConfig() {
 			]
 		]
 	});
+	
+
+	cfg.saliency.boundingShapes.push({
+		"points": [
+			[
+				3309 - (730 * 0.2),
+				857 - (857 * 0.2)
+			],
+			[
+				3309 - (730 * 0.2) + (730 * 1.4),
+				857 - (731 * 0.2)
+			],
+			[
+				3309 - (730 * 0.2) + (730 * 1.4),
+				857 - (731 * 0.2) + (731 * 1.4)
+			],
+			[
+				3309 - (730 * 0.2),
+				857 - (731 * 0.2) + (731 * 1.4)
+			]
+		]
+	});
 
 	return cfg;
 }
@@ -824,6 +837,7 @@ class State {
 	}
 }
 
+/* Step: a Shape, color and alpha */
 class Step {
 	constructor(shape, cfg) {
 		this.shape = shape;
@@ -885,7 +899,8 @@ class Optimizer {
 		this.cfg = cfg;
 		this.state = new State(originalCanvas, Canvas.empty(cfg));
 		this._steps = 0;
-		this.onStep = () => {};
+        this.onStep = () => {};
+        this.onDone = () => {};
         console.log("initial distance %s", this.state.distance);
         
         //this.DEBUGGING = true;
@@ -933,20 +948,38 @@ class Optimizer {
                 this.debugState.currentReferenceTarget = this.state.canvas;
 			} else { /* worse than current state, discard */
 				this.onStep(null);
-			}
+            }
 			this._continue();
 		});
 	}
 
 	_continue() {
 		if (this._steps < this.cfg.steps) {
+            // initial bias can be set via UI, so only change at fixed intervals here
+            // normally:
+            // 0 - 5%: totally random (bias = 0)
+            // 5 - 75% : 95% from salient
+            // 75% - 100% : 100% from salient
+            if( this._steps == ~~(0.05 * this.cfg.steps) ){
+                this.cfg.saliency.bias = 0.975;
+                console.log("Updating saliency bias after 10% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+            }
+            else if( this._steps == ~~(0.75 * this.cfg.steps) ){
+                this.cfg.saliency.bias = 1;
+                console.log("Updating saliency bias after 90% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+            }
+
 			setTimeout(() => this._addShape(), 0);//10);
 		} else {
 			let time = Date.now() - this._ts;
 			console.log("target distance %s", this.state.distance);
 			console.log("real target distance %s", this.state.target.distance(this.state.canvas));
-			console.log("finished in %s", time);
-		}
+            console.log("finished in %s", time);
+            
+			console.log("Generated shapes in salient areas", window.DEBUGsalientCount, window.DEBUGrandomCount, (window.DEBUGrandomCount + window.DEBUGsalientCount),  window.DEBUGsalientCount / (window.DEBUGrandomCount + window.DEBUGsalientCount));
+        
+            this.onDone();
+        } 
 	}
 
 	_findBestStep() {
@@ -1054,6 +1087,9 @@ class Optimizer {
 	}
 }
 
+//import * as JSZip from "jszip";
+
+// these are just the output nodes on the bottom of the page, not the input switches
 const nodes = {
 	output: document.querySelector("#output"),
 	original: document.querySelector("#original"),
@@ -1069,7 +1105,6 @@ const nodes = {
 let steps;
 
 function go(originalCanvas, cfg) {
-    lock();
     
     console.log("ROBIN SAYS GOOOO!");
 
@@ -1145,12 +1180,39 @@ function go(originalCanvas, cfg) {
 	};
 
 	optimizer.onSaliencyKnown = (saliencyPolygons) => {
-		let p = new Polygon(2000, 2000, saliencyPolygons, saliencyPolygons[0].points.length);
-		p.points = saliencyPolygons[0].points;
-		p.computeBbox();
-		debugMutationCanvas.ctx.fillStyle = "#FF0000";
 
-		p.render( debugMutationCanvas.ctx );
+		for( let polygon of saliencyPolygons ){
+			let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
+			p.points = polygon.points;
+			p.computeBbox();
+			debugMutationCanvas.ctx.fillStyle = "#FF0000";
+
+			p.render( debugMutationCanvas.ctx );
+		}
+
+	};
+
+	optimizer.onDone = () => {
+		console.log("Done, putting it in localStorage!");
+
+		localStorage.setItem('robinTestdeDingen', document.getElementById("vector-text").value);
+
+		let zip = new JSZip();
+
+		let contents = localStorage.getItem("robinTestdeDingen");
+		zip.file("test2.svg", contents );
+
+		zip.generateAsync({type:"blob"}).then(function (blob) {
+			
+			let link = document.createElement('a');
+			link.href = window.URL.createObjectURL( blob );
+			link.download = "total.zip";
+
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			
+		});
 	};
 
 	optimizer.start();
@@ -1194,10 +1256,10 @@ function onSubmit(e) {
 
 
 
-function init$$1() {
+function init$1() {
 	nodes.output.style.display = "none";
 	nodes.types.forEach(input => input.addEventListener("click", syncType));
-	init$1();
+	init();
 	syncType();
 	document.querySelector("form").addEventListener("submit", onSubmit);
 }
@@ -1209,6 +1271,6 @@ function syncType() {
 	});
 }
 
-init$$1();
+init$1();
 
 }());

@@ -8,7 +8,8 @@ export default class Optimizer {
 		this.cfg = cfg;
 		this.state = new State(originalCanvas, Canvas.empty(cfg));
 		this._steps = 0;
-		this.onStep = () => {};
+        this.onStep = () => {};
+        this.onDone = () => {};
         console.log("initial distance %s", this.state.distance);
         
         //this.DEBUGGING = true;
@@ -56,20 +57,38 @@ export default class Optimizer {
                 this.debugState.currentReferenceTarget = this.state.canvas;
 			} else { /* worse than current state, discard */
 				this.onStep(null);
-			}
+            }
 			this._continue();
 		});
 	}
 
 	_continue() {
 		if (this._steps < this.cfg.steps) {
+            // initial bias can be set via UI, so only change at fixed intervals here
+            // normally:
+            // 0 - 5%: totally random (bias = 0)
+            // 5 - 75% : 95% from salient
+            // 75% - 100% : 100% from salient
+            if( this._steps == ~~(0.05 * this.cfg.steps) ){
+                this.cfg.saliency.bias = 0.975;
+                console.log("Updating saliency bias after 10% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+            }
+            else if( this._steps == ~~(0.75 * this.cfg.steps) ){
+                this.cfg.saliency.bias = 1;
+                console.log("Updating saliency bias after 90% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+            }
+
 			setTimeout(() => this._addShape(), 0);//10);
 		} else {
 			let time = Date.now() - this._ts;
 			console.log("target distance %s", this.state.distance);
 			console.log("real target distance %s", this.state.target.distance(this.state.canvas));
-			console.log("finished in %s", time);
-		}
+            console.log("finished in %s", time);
+            
+			console.log("Generated shapes in salient areas", window.DEBUGsalientCount, window.DEBUGrandomCount, (window.DEBUGrandomCount + window.DEBUGsalientCount),  window.DEBUGsalientCount / (window.DEBUGrandomCount + window.DEBUGsalientCount));
+        
+            this.onDone();
+        } 
 	}
 
 	_findBestStep() {
