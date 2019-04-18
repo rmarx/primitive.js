@@ -88,6 +88,7 @@ export default class Canvas {
 				let viewScale = getScale(w, h, cfg.viewSize);
 
 				cfg.scale = computeScale / viewScale;
+				cfg.computeScale = computeScale;
 
 				let canvas = this.empty(cfg);
 				canvas.ctx.drawImage(img, 0, 0, cfg.width, cfg.height);

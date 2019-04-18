@@ -221,6 +221,7 @@ class Canvas {
 				let viewScale = getScale(w, h, cfg.viewSize);
 
 				cfg.scale = computeScale / viewScale;
+				cfg.computeScale = computeScale;
 
 				let canvas = this.empty(cfg);
 				canvas.ctx.drawImage(img, 0, 0, cfg.width, cfg.height);
@@ -321,21 +322,88 @@ class Canvas {
     }
 }
 
+window.DEBUGrandomCount = 0;
+window.DEBUGsalientCount = 0;
+
 /* Shape: a geometric primitive with a bbox */
 class Shape {
-	static randomPoint(width, height) {
-        return [~~(Math.random()*width), ~~(Math.random()*height)];
+	randomPoint(width, height) {
+
+		// note: this is also called when mutating. It never has saliency set then
+		// however, that's just because it's called in the ctor : overridden immediately afterwards
+		if( this.saliencyAreas /*&& (Math.random() > 0.01)*/ ){
+			//console.log("Taking into account saliency!", this.saliencyAreas);
+
+			// Note: we do all the logic here because it's easiest to implement
+			// in a decent framework, we would abstract this out, but we don't plan to keep on using this anyway, so...
+
+			// for now, we just use the axis-aligned bounding box. 
+			// Since we do a bit of mutating anyways, this should work well enough.
+			
+			// BEWARE: saliencyAreas is shared by ALL generated shapes! 
+			if( !this.saliencyAreas[0].bbox ){
+				let min = [
+					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[0]), Infinity),
+					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[1]), Infinity)
+				];
+				let max = [
+					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[0]), -Infinity),
+					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[1]), -Infinity)
+				];
+		
+				this.saliencyAreas[0].bbox = {
+					left: min[0],
+					top: min[1],
+					width: (max[0]-min[0]) || 1, /* fallback for deformed shapes */
+					height: (max[1]-min[1]) || 1
+				};
+			}
+
+			let x = this.saliencyAreas[0].bbox.left + Math.random()*this.saliencyAreas[0].bbox.width;
+			let y = this.saliencyAreas[0].bbox.top + Math.random()*this.saliencyAreas[0].bbox.height;
+
+			++window.DEBUGsalientCount;
+			return [~~x, ~~y];
+		}
+		else{
+			// no saliency info known: just random for the entire image 
+			// ~~ is a faster replacement for Math.floor 
+			++window.DEBUGrandomCount;
+			return [~~(Math.random()*width), ~~(Math.random()*height)];
+		}
+
+		/*
+        if( 1 == 0 ){
+            // ~~ is a faster replacement for Math.floor 
+            let leftEdge = width * 0.40;
+            let rightEdge = width * 0.60;
+            width = (Math.random()*(rightEdge - leftEdge)) + leftEdge; // between leftEdge and rightEdge
+
+            // y 0 is at the TOP, not bottom, so inverse logic 
+            let topEdge = height * 0.15; // should be the shorter one 
+            let bottomEdge = height * 0.25;
+            height = (Math.random()*(bottomEdge - topEdge)) + topEdge;
+
+            console.log("RANDOM POINT ", leftEdge, rightEdge, width, height);
+            return [~~width, ~~height];
+		}
+		*/
 	}
 
 	static create(cfg) {
 		let ctors = cfg.shapeTypes;
 		let index = Math.floor(Math.random() * ctors.length);
 		let ctor = ctors[index];
-		return new ctor(cfg.width, cfg.height);
+
+		let saliencyAreas = cfg.saliency.boundingShapes;
+		let saliencyPhase = cfg.saliency.phase;
+
+		return new ctor(cfg.width, cfg.height, saliencyAreas);
 	}
 
-	constructor(w, h) {
+	constructor(w, h, saliencyAreas) {
 		this.bbox = {};
+		this.saliencyAreas = saliencyAreas;
 	}
 
 	mutate(cfg) { return this; }
@@ -357,8 +425,8 @@ class Shape {
 }
 
 class Polygon extends Shape {
-	constructor(w, h, count) {
-		super(w, h);
+	constructor(w, h, saliencyAreas, count) {
+		super(w, h, saliencyAreas);
 
 		this.points = this._createPoints(w, h, count);
 		this.computeBbox();
@@ -423,7 +491,7 @@ class Polygon extends Shape {
 	}
 
 	_createPoints(w, h, count) {
-		let first = Shape.randomPoint(w, h);
+		let first = this.randomPoint(w, h);
 		let points = [first];
 
 		for (let i=1;i<count;i++) {
@@ -439,14 +507,14 @@ class Polygon extends Shape {
 }
 
 class Triangle extends Polygon {
-	constructor(w, h) {
-		super(w, h, 3);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas, 3);
 	}
 }
 
 class Rectangle extends Polygon {
-	constructor(w, h) {
-		super(w, h, 4);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas, 4);
 	}
 
 	mutate(cfg) {
@@ -478,8 +546,8 @@ class Rectangle extends Polygon {
 	}
 
 	_createPoints(w, h, count) {
-		let p1 = Shape.randomPoint(w, h);
-		let p2 = Shape.randomPoint(w, h);
+		let p1 = this.randomPoint(w, h);
+		let p2 = this.randomPoint(w, h);
 
 		let left = Math.min(p1[0], p2[0]);
 		let right = Math.max(p1[0], p2[0]);
@@ -496,10 +564,10 @@ class Rectangle extends Polygon {
 }
 
 class Ellipse extends Shape {
-	constructor(w, h) {
-		super(w, h);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas);
 
-		this.center = Shape.randomPoint(w, h);
+		this.center = this.randomPoint(w, h);
 		this.rx = 1 + ~~(Math.random() * 20);
 		this.ry = 1 + ~~(Math.random() * 20);
 
@@ -561,9 +629,9 @@ class Ellipse extends Shape {
 }
 
 class Smiley extends Shape {
-	constructor(w, h) {
-		super(w, h);
-		this.center = Shape.randomPoint(w, h);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas);
+		this.center = this.randomPoint(w, h);
 		this.text = "☺";
 		this.fontSize = 16;
 		this.computeBbox();
@@ -688,6 +756,62 @@ function getConfig() {
 		}
 	});
 
+	cfg.DEBUGGING = document.querySelector("#debuggingToggle").checked;
+	
+	console.log("DEBUGGING", cfg.DEBUGGING);
+
+	document.getElementById("debugPhase1Canvas").style.display = cfg.DEBUGGING ? "block" : "none";
+	document.getElementById("debugMutationCanvas").style.display = cfg.DEBUGGING ? "block" : "none";
+
+	cfg.saliency = {};
+	cfg.saliency.phase = 0;
+	cfg.saliency.boundingShapes = [];  
+	// for now, hardcoded on pexels/1a2b89987b488d73140e70db8360a804e3302b37abb4af0a8d0f9800749788f8.json
+	/*
+	cfg.saliency.boundingShapes.push({
+		"points": [
+			[
+				3582,
+				1783
+			],
+			[
+				3153,
+				1367
+			],
+			[
+				3770,
+				733
+			],
+			[
+				4198,
+				1149
+			]
+		]
+	});
+	*/
+	
+	
+	cfg.saliency.boundingShapes.push({
+		"points": [
+			[
+				3309,
+				857
+			],
+			[
+				3309 + 730,
+				857
+			],
+			[
+				3309 + 730,
+				857 + 731
+			],
+			[
+				3309,
+				857 + 731
+			]
+		]
+	});
+
 	return cfg;
 }
 
@@ -764,10 +888,12 @@ class Optimizer {
 		this.onStep = () => {};
         console.log("initial distance %s", this.state.distance);
         
-        this.DEBUGGING = false;
+        //this.DEBUGGING = true;
+        this.DEBUGGING = cfg.DEBUGGING;
         this.debugConfig = {};
-        this.debugConfig.phase1Timeout = 1;
-        this.debugConfig.mutationTimeout = 1;
+        this.debugConfig.phase1Timeout = 0;
+        this.debugConfig.mutationTimeout = 0;
+        this.onSaliencyKnown = () => {};
         this.onDebugPhase1Step = () => {};
         this.onDebugMutationStep = () => {};
         this.debugState = new State(this.state.canvas, Canvas.empty(cfg));
@@ -775,8 +901,12 @@ class Optimizer {
 	}
 
 	start() {
-		this._ts = Date.now();
-		this._addShape();
+        if( this.DEBUGGING && this.cfg.saliency && this.cfg.saliency.boundingShapes){
+            this.onSaliencyKnown( this.cfg.saliency.boundingShapes );
+        }
+        
+        this._ts = Date.now();
+        this._addShape();
 	}
 
 	_addShape() {
@@ -810,7 +940,7 @@ class Optimizer {
 
 	_continue() {
 		if (this._steps < this.cfg.steps) {
-			setTimeout(() => this._addShape(), 10);
+			setTimeout(() => this._addShape(), 0);//10);
 		} else {
 			let time = Date.now() - this._ts;
 			console.log("target distance %s", this.state.distance);
@@ -858,8 +988,8 @@ class Optimizer {
                     ++generatedSteps;
                     this.onDebugPhase1Step( step, this.debugState.currentReferenceTarget );
                     
-                    if( bestStep )
-                        console.log("Phase1step : ", step.distance, bestStep.distance, Math.abs(bestStep.distance - step.distance));    
+                    //if( bestStep )
+                    //    console.log("Phase1step : ", step.distance, bestStep.distance, Math.abs(bestStep.distance - step.distance));    
 
                     if (!bestStep || step.distance < bestStep.distance) {
                         bestStep = step;
@@ -981,7 +1111,7 @@ function go(originalCanvas, cfg) {
     // optimizer generates step definitions, here we actually draw them
     // it is very unclear to me why we are rendering to both raster and svg canvases though...
 	optimizer.onStep = (step) => {
-		if (step) {
+		if (step !== undefined && step !== null) {
 			rasterCanvas.drawStep(step);
 			svgCanvas.appendChild(step.toSVG());
 			let percent = (100*(1-step.distance)).toFixed(2);
@@ -1005,9 +1135,22 @@ function go(originalCanvas, cfg) {
 		if (step) {
             debugMutationCanvas.replaceWithOther( referenceCanvas );
 			debugMutationCanvas.drawStep(step);
+
+			if( cfg.DEBUGGING && cfg.saliency && cfg.saliency.boundingShapes){
+				optimizer.onSaliencyKnown( cfg.saliency.boundingShapes );
+			}
         }
         else
             console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
+	};
+
+	optimizer.onSaliencyKnown = (saliencyPolygons) => {
+		let p = new Polygon(2000, 2000, saliencyPolygons, saliencyPolygons[0].points.length);
+		p.points = saliencyPolygons[0].points;
+		p.computeBbox();
+		debugMutationCanvas.ctx.fillStyle = "#FF0000";
+
+		p.render( debugMutationCanvas.ctx );
 	};
 
 	optimizer.start();
@@ -1031,7 +1174,21 @@ function onSubmit(e) {
 
 	let cfg = getConfig();
 
-	Canvas.original(url, cfg).then(originalCanvas => go(originalCanvas, cfg));
+
+
+	Canvas.original(url, cfg).then(
+		(originalCanvas) => {
+			// cfg.scale is only now known
+			if( cfg.saliency ){
+				for( let shape of cfg.saliency.boundingShapes ){
+					for( let point of shape.points ){
+						point[0] = point[0] / cfg.computeScale; // x
+						point[1] = point[1] / cfg.computeScale; // y
+					}
+				}
+			}
+			return go(originalCanvas, cfg);
+		});
 }
 
 

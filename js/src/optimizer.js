@@ -11,10 +11,12 @@ export default class Optimizer {
 		this.onStep = () => {};
         console.log("initial distance %s", this.state.distance);
         
-        this.DEBUGGING = false;
+        //this.DEBUGGING = true;
+        this.DEBUGGING = cfg.DEBUGGING;
         this.debugConfig = {};
-        this.debugConfig.phase1Timeout = 1;
-        this.debugConfig.mutationTimeout = 1;
+        this.debugConfig.phase1Timeout = 0;
+        this.debugConfig.mutationTimeout = 0;
+        this.onSaliencyKnown = () => {};
         this.onDebugPhase1Step = () => {};
         this.onDebugMutationStep = () => {};
         this.debugState = new State(this.state.canvas, Canvas.empty(cfg));
@@ -22,8 +24,12 @@ export default class Optimizer {
 	}
 
 	start() {
-		this._ts = Date.now();
-		this._addShape();
+        if( this.DEBUGGING && this.cfg.saliency && this.cfg.saliency.boundingShapes){
+            this.onSaliencyKnown( this.cfg.saliency.boundingShapes );
+        }
+        
+        this._ts = Date.now();
+        this._addShape();
 	}
 
 	_addShape() {
@@ -57,7 +63,7 @@ export default class Optimizer {
 
 	_continue() {
 		if (this._steps < this.cfg.steps) {
-			setTimeout(() => this._addShape(), 10);
+			setTimeout(() => this._addShape(), 0);//10);
 		} else {
 			let time = Date.now() - this._ts;
 			console.log("target distance %s", this.state.distance);
@@ -105,8 +111,8 @@ export default class Optimizer {
                     ++generatedSteps;
                     this.onDebugPhase1Step( step, this.debugState.currentReferenceTarget );
                     
-                    if( bestStep )
-                        console.log("Phase1step : ", step.distance, bestStep.distance, Math.abs(bestStep.distance - step.distance));    
+                    //if( bestStep )
+                    //    console.log("Phase1step : ", step.distance, bestStep.distance, Math.abs(bestStep.distance - step.distance));    
 
                     if (!bestStep || step.distance < bestStep.distance) {
                         bestStep = step;

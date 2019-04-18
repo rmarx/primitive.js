@@ -1,9 +1,57 @@
 import Canvas from "./canvas.js";
 import * as util from "./util.js";
 
+window.DEBUGrandomCount = 0;
+window.DEBUGsalientCount = 0;
+
 /* Shape: a geometric primitive with a bbox */
 export class Shape {
-	static randomPoint(width, height) {
+	randomPoint(width, height) {
+
+		// note: this is also called when mutating. It never has saliency set then
+		// however, that's just because it's called in the ctor : overridden immediately afterwards
+		if( this.saliencyAreas /*&& (Math.random() > 0.01)*/ ){
+			//console.log("Taking into account saliency!", this.saliencyAreas);
+
+			// Note: we do all the logic here because it's easiest to implement
+			// in a decent framework, we would abstract this out, but we don't plan to keep on using this anyway, so...
+
+			// for now, we just use the axis-aligned bounding box. 
+			// Since we do a bit of mutating anyways, this should work well enough.
+			
+			// BEWARE: saliencyAreas is shared by ALL generated shapes! 
+			if( !this.saliencyAreas[0].bbox ){
+				let min = [
+					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[0]), Infinity),
+					this.saliencyAreas[0].points.reduce((v, p) => Math.min(v, p[1]), Infinity)
+				];
+				let max = [
+					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[0]), -Infinity),
+					this.saliencyAreas[0].points.reduce((v, p) => Math.max(v, p[1]), -Infinity)
+				];
+		
+				this.saliencyAreas[0].bbox = {
+					left: min[0],
+					top: min[1],
+					width: (max[0]-min[0]) || 1, /* fallback for deformed shapes */
+					height: (max[1]-min[1]) || 1
+				};
+			}
+
+			let x = this.saliencyAreas[0].bbox.left + Math.random()*this.saliencyAreas[0].bbox.width;
+			let y = this.saliencyAreas[0].bbox.top + Math.random()*this.saliencyAreas[0].bbox.height;
+
+			++window.DEBUGsalientCount;
+			return [~~x, ~~y];
+		}
+		else{
+			// no saliency info known: just random for the entire image 
+			// ~~ is a faster replacement for Math.floor 
+			++window.DEBUGrandomCount;
+			return [~~(Math.random()*width), ~~(Math.random()*height)];
+		}
+
+		/*
         if( 1 == 0 ){
             // ~~ is a faster replacement for Math.floor 
             let leftEdge = width * 0.40;
@@ -17,20 +65,24 @@ export class Shape {
 
             console.log("RANDOM POINT ", leftEdge, rightEdge, width, height);
             return [~~width, ~~height];
-        }
-
-		return [~~(Math.random()*width), ~~(Math.random()*height)];
+		}
+		*/
 	}
 
 	static create(cfg) {
 		let ctors = cfg.shapeTypes;
 		let index = Math.floor(Math.random() * ctors.length);
 		let ctor = ctors[index];
-		return new ctor(cfg.width, cfg.height);
+
+		let saliencyAreas = cfg.saliency.boundingShapes;
+		let saliencyPhase = cfg.saliency.phase;
+
+		return new ctor(cfg.width, cfg.height, saliencyAreas);
 	}
 
-	constructor(w, h) {
+	constructor(w, h, saliencyAreas) {
 		this.bbox = {};
+		this.saliencyAreas = saliencyAreas;
 	}
 
 	mutate(cfg) { return this; }
@@ -51,9 +103,9 @@ export class Shape {
 	render(ctx) {}
 }
 
-class Polygon extends Shape {
-	constructor(w, h, count) {
-		super(w, h);
+export class Polygon extends Shape {
+	constructor(w, h, saliencyAreas, count) {
+		super(w, h, saliencyAreas);
 
 		this.points = this._createPoints(w, h, count);
 		this.computeBbox();
@@ -118,7 +170,7 @@ class Polygon extends Shape {
 	}
 
 	_createPoints(w, h, count) {
-		let first = Shape.randomPoint(w, h);
+		let first = this.randomPoint(w, h);
 		let points = [first];
 
 		for (let i=1;i<count;i++) {
@@ -134,14 +186,14 @@ class Polygon extends Shape {
 }
 
 export class Triangle extends Polygon {
-	constructor(w, h) {
-		super(w, h, 3);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas, 3);
 	}
 }
 
 export class Rectangle extends Polygon {
-	constructor(w, h) {
-		super(w, h, 4);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas, 4);
 	}
 
 	mutate(cfg) {
@@ -173,8 +225,8 @@ export class Rectangle extends Polygon {
 	}
 
 	_createPoints(w, h, count) {
-		let p1 = Shape.randomPoint(w, h);
-		let p2 = Shape.randomPoint(w, h);
+		let p1 = this.randomPoint(w, h);
+		let p2 = this.randomPoint(w, h);
 
 		let left = Math.min(p1[0], p2[0]);
 		let right = Math.max(p1[0], p2[0]);
@@ -191,10 +243,10 @@ export class Rectangle extends Polygon {
 }
 
 export class Ellipse extends Shape {
-	constructor(w, h) {
-		super(w, h);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas);
 
-		this.center = Shape.randomPoint(w, h);
+		this.center = this.randomPoint(w, h);
 		this.rx = 1 + ~~(Math.random() * 20);
 		this.ry = 1 + ~~(Math.random() * 20);
 
@@ -256,9 +308,9 @@ export class Ellipse extends Shape {
 }
 
 export class Smiley extends Shape {
-	constructor(w, h) {
-		super(w, h);
-		this.center = Shape.randomPoint(w, h);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas);
+		this.center = this.randomPoint(w, h);
 		this.text = "☺";
 		this.fontSize = 16;
 		this.computeBbox();
@@ -323,8 +375,8 @@ export class Smiley extends Shape {
 }
 
 export class Debug extends Shape {
-	constructor(w, h) {
-		super(w, h);
+	constructor(w, h, saliencyAreas) {
+		super(w, h, saliencyAreas);
 		this.bbox = {left: 0, top: 0, width:w, height: h};
 	}
 

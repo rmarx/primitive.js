@@ -1,6 +1,7 @@
 import * as ui from "./ui.js";
 import Canvas from "./canvas.js";
 import Optimizer from "./optimizer.js";
+import {Polygon} from "./shape.js";
 
 // these are just the output nodes on the bottom of the page, not the input switches
 const nodes = {
@@ -60,7 +61,7 @@ function go(originalCanvas, cfg) {
     // optimizer generates step definitions, here we actually draw them
     // it is very unclear to me why we are rendering to both raster and svg canvases though...
 	optimizer.onStep = (step) => {
-		if (step) {
+		if (step !== undefined && step !== null) {
 			rasterCanvas.drawStep(step);
 			svgCanvas.appendChild(step.toSVG());
 			let percent = (100*(1-step.distance)).toFixed(2);
@@ -84,9 +85,22 @@ function go(originalCanvas, cfg) {
 		if (step) {
             debugMutationCanvas.replaceWithOther( referenceCanvas );
 			debugMutationCanvas.drawStep(step);
+
+			if( cfg.DEBUGGING && cfg.saliency && cfg.saliency.boundingShapes){
+				optimizer.onSaliencyKnown( cfg.saliency.boundingShapes );
+			}
         }
         else
             console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
+	}
+
+	optimizer.onSaliencyKnown = (saliencyPolygons) => {
+		let p = new Polygon(2000, 2000, saliencyPolygons, saliencyPolygons[0].points.length);
+		p.points = saliencyPolygons[0].points;
+		p.computeBbox();
+		debugMutationCanvas.ctx.fillStyle = "#FF0000";
+
+		p.render( debugMutationCanvas.ctx );
 	}
 
 	optimizer.start();
@@ -110,7 +124,21 @@ function onSubmit(e) {
 
 	let cfg = ui.getConfig();
 
-	Canvas.original(url, cfg).then(originalCanvas => go(originalCanvas, cfg));
+
+
+	Canvas.original(url, cfg).then(
+		(originalCanvas) => {
+			// cfg.scale is only now known
+			if( cfg.saliency ){
+				for( let shape of cfg.saliency.boundingShapes ){
+					for( let point of shape.points ){
+						point[0] = point[0] / cfg.computeScale; // x
+						point[1] = point[1] / cfg.computeScale; // y
+					}
+				}
+			}
+			return go(originalCanvas, cfg);
+		});
 }
 
 
