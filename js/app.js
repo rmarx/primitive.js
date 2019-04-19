@@ -750,9 +750,10 @@ function getConfig() {
 	
 	console.log("DEBUGGING", cfg.DEBUGGING);
 
-	document.getElementById("debugPhase1Canvas").style.display = cfg.DEBUGGING ? "block" : "none";
+	//document.getElementById("debugPhase1Canvas").style.display = cfg.DEBUGGING ? "block" : "none";
 	document.getElementById("debugMutationCanvas").style.display = cfg.DEBUGGING ? "block" : "none";
 
+	/*
 	cfg.saliency = {};
 	cfg.saliency.bias = 0; // in percentage, how many shapes MUST originate within the salient areas
 	// e.g., if 0: totally random. if 1: everything from salient areas, if 0.8: 80% will start in salient zone
@@ -781,7 +782,7 @@ function getConfig() {
 	});
 	*/
 	
-	
+	/*
 	cfg.saliency.boundingShapes.push({
 		"points": [
 			[
@@ -824,9 +825,100 @@ function getConfig() {
 			]
 		]
 	});
+	*/
 
 	return cfg;
 }
+
+let config = {};
+config.urls = [
+	"TEMP/input/pexels/0cc0680128765f61512b1e9dca4805b8bbe5cf95eef79cefb1b89903ab9149d7.jpeg",
+	"TEMP/input/pexels/0b325c07fc18ccb0163c82655b4296f5beee08c02f44dbfe8933cdd6067e66e3.jpeg",
+    "TEMP/input/pexels/0bcb90087c59c54796ed680e5864c0182bf42baca6884ba5bd63d5c652369f0e.jpeg",
+    "TEMP/input/pexels/1a2b89987b488d73140e70db8360a804e3302b37abb4af0a8d0f9800749788f8.jpeg",
+	"TEMP/input/pexels/0f4d00fc957efe49254e9db382a42e853f5716eff3e486bf32e91720eece3ec3.jpeg",
+	"TEMP/input/pexels/16e419efdf21916cf6fedf8157050346564564e771b4d23908173b9541eb1ae2.jpeg",
+	"TEMP/input/pexels/02bea757f29c8f9a3c3c4dd28c48bb875edab22a62a92c6193760a2d03977eb6.jpeg",
+	"TEMP/input/pexels/037afc83ad7f53cbd773012aabc1504d7560efac49026af76d9094abe2b633e1.jpeg",
+	"TEMP/input/pexels/022f34f6c1752bf2109bd6376a7e4fca1959fa73a39493383d60ec8047aa6c03.jpeg",
+	"TEMP/input/pexels/0df33752620afdb5e8dc69541e96fe785982ee50046f563191131013005ac615.jpeg",
+	"TEMP/input/pexels/09b8d0e83c23c9ed07259cae3ad5280901512c553d20e420fecc616f5a858421.jpeg",
+	"TEMP/input/pexels/13cf844e4bab344ac68ff1db590595fc4eedcb9fd33767af9eff8895fb43e4e9.jpeg",
+	"TEMP/input/pexels/0955a45917e736aa80b15a1ae43d9a00dfc35f46af8a524d79899c81579706c0.jpeg",
+	"TEMP/input/pexels/06d9da3ee8c8308b0f4d899d6392bc483bbd1a76d738b6bb5940e76cc871c3b9.jpeg",
+	"TEMP/input/pexels/1cdae928afd6d8276bc26bfc32c8ffb210edcb6d3b9bc6d2a8064b15a44abda1.jpeg",
+	"TEMP/input/pexels/0cf2db820f1b47bdbaba15c5dcb5eab3ed1a4915588791ecd0f1c2ecdbd4353a.jpeg",
+	"TEMP/input/pexels/09a0ce7c2a46b99e2edb46457462ab2365a6439d31936b6b6ab33c3966f20bc1.jpeg",
+	"TEMP/input/pexels/13aa5d4eec4f3dfb02e201cd42e7e189ad12ed25847284a6e3a8d0eeb839f362.jpeg",
+	"TEMP/input/pexels/1332ec3beba5f0e24bd8e0b07015a188b21290251214c2f9956af5d4289d7767.jpeg",
+	"TEMP/input/pexels/0bcb90087c59c54796ed680e5864c0182bf42baca6884ba5bd63d5c652369f0e.jpeg"
+];
+
+let strictBiasUpdater = function(saliencyConfig, step, totalSteps){ 
+    saliencyConfig.bias = 1;
+};
+
+
+config.configs = [
+    { 
+        name: "fast500",
+        description: "",
+        DEBUGGING: false,
+        computeSize: 256, 
+        viewSize: 512, 
+        steps: 500, 
+        shapes: 500,
+        mutations: 50,
+        //shapes: 1000, 
+        //mutations: 100,
+        alpha: 0.5,
+        mutateAlpha: true,
+        fill:"auto",
+        shapeTypes: [Triangle, Ellipse],
+        saliency: {
+            initialBias: 0,
+            updateBias: strictBiasUpdater//defaultBiasUpdater
+        }
+    }/*,
+    { 
+        name: "medium100",
+        description: "",
+        DEBUGGING: false,
+        computeSize: 256, 
+        viewSize: 512, 
+        steps: 100, 
+        shapes: 500,
+        mutations: 50,
+        //shapes: 1000, 
+        //mutations: 100,
+        alpha: 0.5,
+        mutateAlpha: true,
+        fill:"auto",
+        shapeTypes: [Triangle, Ellipse],
+        saliency: {
+            initialBias: 0,
+            updateBias: defaultBiasUpdater
+        }
+    },
+    { 
+        name: "fast50",
+        description: "",
+        DEBUGGING: false,
+        computeSize: 256, 
+        viewSize: 512, 
+        steps: 50, 
+        shapes: 200,
+        mutations: 30,
+        alpha: 0.5,
+        mutateAlpha: true,
+        fill:"auto",
+        shapeTypes: [Triangle, Ellipse],
+        saliency: {
+            initialBias: 0,
+            updateBias: defaultBiasUpdater
+        }
+    }*/
+];
 
 /* State: target canvas, current canvas and a distance value */
 class State {
@@ -916,7 +1008,7 @@ class Optimizer {
 	}
 
 	start() {
-        if( this.DEBUGGING && this.cfg.saliency && this.cfg.saliency.boundingShapes){
+        if( /*this.DEBUGGING &&*/ this.cfg.saliency && this.cfg.saliency.boundingShapes){
             this.onSaliencyKnown( this.cfg.saliency.boundingShapes );
         }
         
@@ -955,18 +1047,18 @@ class Optimizer {
 
 	_continue() {
 		if (this._steps < this.cfg.steps) {
-            // initial bias can be set via UI, so only change at fixed intervals here
-            // normally:
-            // 0 - 5%: totally random (bias = 0)
-            // 5 - 75% : 95% from salient
-            // 75% - 100% : 100% from salient
-            if( this._steps == ~~(0.05 * this.cfg.steps) ){
-                this.cfg.saliency.bias = 0.975;
-                console.log("Updating saliency bias after 10% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
-            }
-            else if( this._steps == ~~(0.75 * this.cfg.steps) ){
-                this.cfg.saliency.bias = 1;
-                console.log("Updating saliency bias after 90% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+            if( this.cfg.saliency ){
+                /*
+                if( this._steps == ~~(0.1 * this.cfg.steps) ){
+                    this.cfg.saliency.bias = 0.975;
+                    console.log("Updating saliency bias after 10% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+                }
+                else if( this._steps == ~~(0.75 * this.cfg.steps) ){
+                    this.cfg.saliency.bias = 1;
+                    console.log("Updating saliency bias after 90% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+                }
+                */
+               this.cfg.saliency.updateBias( this.cfg.saliency, this._steps, this.cfg.steps );
             }
 
 			setTimeout(() => this._addShape(), 0);//10);
@@ -1105,8 +1197,6 @@ const nodes = {
 let steps;
 
 function go(originalCanvas, cfg) {
-    
-    console.log("ROBIN SAYS GOOOO!");
 
 	nodes.steps.innerHTML = "";
 	nodes.original.innerHTML = "";
@@ -1130,9 +1220,13 @@ function go(originalCanvas, cfg) {
 	nodes.raster.appendChild(rasterCanvas.node);
 
 	let svgCanvas = Canvas.empty(cfg, true);
-	svgCanvas.setAttribute("width", cfg2.width);
-	svgCanvas.setAttribute("height", cfg2.height);
-    nodes.vector.appendChild(svgCanvas);
+	//svgCanvas.setAttribute("width", cfg2.width); // screen-filling svg by default
+	//svgCanvas.setAttribute("height", cfg2.height); // screen-filling svg by default
+	nodes.vector.appendChild(svgCanvas);
+	
+	// svg is not by default filling up the div, as is the case with canvas 
+	document.getElementById("vector").style.width = cfg2.width + "px";
+	document.getElementById("vector").style.height = cfg2.height + "px";
     
     let debugPhase1Canvas = Canvas.empty(cfg2, false);
 	debugPhase1Canvas.ctx.scale(cfg.scale, cfg.scale);
@@ -1151,22 +1245,36 @@ function go(originalCanvas, cfg) {
 			svgCanvas.appendChild(step.toSVG());
 			let percent = (100*(1-step.distance)).toFixed(2);
 			nodes.vectorText.value = serializer.serializeToString(svgCanvas);
-			nodes.steps.innerHTML = `(${++steps} of ${cfg.steps}, ${percent}% similar)`;
+
+			let configName = "";
+			if( autoState && autoState.currentConfig && autoState.currentConfig.name )
+				configName = "" + autoState.currentConfig.name + ", ";
+
+			if( cfg.saliency )
+				nodes.steps.innerHTML = `(${configName}${++steps} of ${cfg.steps}, ${percent}% similar, ${~~(cfg.saliency.bias*100)}% bias to salient regions)`;
+			else
+				nodes.steps.innerHTML = `(${++steps} of ${cfg.steps}, ${percent}% similar)`;
         }
         else
             console.error("app:onStep : no step given... is this really an error though? ", step);
     };
     
 	optimizer.onDebugPhase1Step = (step, referenceCanvas) => {
+		if( !cfg.DEBUGGING )
+			return;
+
 		if (step) {
-            debugPhase1Canvas.replaceWithOther( referenceCanvas );
+			debugPhase1Canvas.replaceWithOther( referenceCanvas );
 			debugPhase1Canvas.drawStep(step);
-        }
-        else
-            console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
+		}
+		else
+			console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
 	};
 
 	optimizer.onDebugMutationStep = (step, referenceCanvas) => {
+		if( !cfg.DEBUGGING )
+			return;
+
 		if (step) {
             debugMutationCanvas.replaceWithOther( referenceCanvas );
 			debugMutationCanvas.drawStep(step);
@@ -1181,22 +1289,51 @@ function go(originalCanvas, cfg) {
 
 	optimizer.onSaliencyKnown = (saliencyPolygons) => {
 
-		for( let polygon of saliencyPolygons ){
-			let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
-			p.points = polygon.points;
-			p.computeBbox();
-			debugMutationCanvas.ctx.fillStyle = "#FF0000";
+		if( !cfg.DEBUGGING ){
+			debugPhase1Canvas.replaceWithOther( originalCanvas );
+			for( let polygon of saliencyPolygons ){
+				let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
+				p.points = polygon.points;
+				p.computeBbox();
+				debugPhase1Canvas.ctx.fillStyle = "#FF0000";
+				debugPhase1Canvas.ctx.globalAlpha = 0.5;
 
-			p.render( debugMutationCanvas.ctx );
+				p.render( debugPhase1Canvas.ctx );
+			}
+		}
+		else{
+			for( let polygon of saliencyPolygons ){
+				let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
+				p.points = polygon.points;
+				p.computeBbox();
+				debugMutationCanvas.ctx.fillStyle = "#FF0000";
+
+				p.render( debugMutationCanvas.ctx );
+			}
 		}
 
 	};
 
 	optimizer.onDone = () => {
-		console.log("Done, putting it in localStorage!");
 
-		localStorage.setItem('robinTestdeDingen', document.getElementById("vector-text").value);
+		if( autoState.currentURLindex != -1 ){ // if -1, it means we're not doing automated processing 
+			console.log("Done, putting it in localStorage!");
 
+			let url = autoState.currentURL;
+			url = url.substring(url.lastIndexOf('/')+1);
+			url = url.replace(".jpeg", ".svg");
+			url = url.replace(".jpg", ".svg");
+			url = url.replace(".png", ".svg");
+
+			// want the config name at the END so windows explorer correctly sorts the same images together
+			url = url.replace(".svg", "_" + autoState.currentConfig.name + ".svg");
+
+			localStorage.setItem("automatedSVG_" + url, document.getElementById("vector-text").value);
+
+			processNextURL();
+		}
+
+		/*
 		let zip = new JSZip();
 
 		let contents = localStorage.getItem("robinTestdeDingen");
@@ -1213,11 +1350,28 @@ function go(originalCanvas, cfg) {
 			document.body.removeChild(link);
 			
 		});
+		*/
 	};
 
 	optimizer.start();
 
 	document.documentElement.scrollTop = document.documentElement.scrollHeight;
+}
+
+function processURL( url, cfg ){
+	Canvas.original(url, cfg).then(
+		(originalCanvas) => {
+			// cfg.scale is only now known
+			if( cfg.saliency ){
+				for( let shape of cfg.saliency.boundingShapes ){
+					for( let point of shape.points ){
+						point[0] = point[0] / cfg.computeScale; // x
+						point[1] = point[1] / cfg.computeScale; // y
+					}
+				}
+			}
+			return go(originalCanvas, cfg);
+		});
 }
 
 function onSubmit(e) {
@@ -1236,22 +1390,152 @@ function onSubmit(e) {
 
 	let cfg = getConfig();
 
-
-
-	Canvas.original(url, cfg).then(
-		(originalCanvas) => {
-			// cfg.scale is only now known
-			if( cfg.saliency ){
-				for( let shape of cfg.saliency.boundingShapes ){
-					for( let point of shape.points ){
-						point[0] = point[0] / cfg.computeScale; // x
-						point[1] = point[1] / cfg.computeScale; // y
-					}
-				}
-			}
-			return go(originalCanvas, cfg);
-		});
+	processURL( url, cfg );
 }
+
+function onAutomatedStart(e){
+	e.preventDefault();
+
+	localStorage.clear();
+
+	processNextURL();
+}
+
+let autoState = {};
+autoState.currentURLindex = -1;
+autoState.currentURL = "";
+autoState.currentConfigIndex = 0;
+autoState.currentConfig = config.configs[autoState.currentConfigIndex];
+
+function processNextURL(){
+
+	++autoState.currentURLindex;
+
+	// we do all images in 1 config after another, then switch to the next config 
+	if( autoState.currentURLindex >= config.urls.length ){
+		if( autoState.currentConfigIndex < config.configs.length - 1 ){
+			autoState.currentConfigIndex += 1;
+			autoState.currentConfig = config.configs[ autoState.currentConfigIndex ];
+
+			autoState.currentURLindex = 0;
+		}
+		else{
+			autoState.currentConfigIndex += 1; // we would reach the length, so we're done
+			// config limit has also been reached, we will go into the next if-test which ends the process
+		}
+	}
+
+	if( autoState.currentURLindex >= config.urls.length && 
+		autoState.currentConfigIndex >= config.configs.length ){
+		console.log("Automated url processing done. Processed " + config.urls.length + " images, "+ config.configs.length +" times.");
+
+		let zip = new JSZip();
+		zip.file("config.json", JSON.stringify(config.configs, null, 4));
+
+		let storedKeys = Object.keys( localStorage );
+		let fileCount = 0;
+		for( let key of storedKeys ){
+			if( key.indexOf("automatedSVG_") < 0 )
+				continue;
+
+			zip.file( key.replace("automatedSVG_", ""), localStorage.getItem(key) );
+			++fileCount;
+		}
+
+		if( fileCount > 0 ){
+
+			zip.generateAsync({type:"blob"}).then(function (blob) {
+				
+				let link = document.createElement('a');
+				link.href = window.URL.createObjectURL( blob );
+				link.download = "automatedSVGs.zip";
+
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				
+			});
+		}
+		else{
+			console.error("Automated processing done, but nothing was saved in localstorage... why did you even do it then?");
+		}
+
+		return;
+	}
+
+	autoState.currentURL = config.urls[autoState.currentURLindex];
+
+	let saliencyURL = autoState.currentURL.replace("jpeg", "json");
+	saliencyURL = saliencyURL.replace("jpg", "json");
+	saliencyURL = saliencyURL.replace("png", "json");
+
+	fetch(saliencyURL).then(
+		function(response) {
+			if (response.status !== 200) {
+				console.log('Fetching saliency: Looks like there was a problem. Status Code: ' + response.status);
+				return;
+			}
+
+			// Examine the text in the response
+			response.json().then(function(saliencyInfo) {
+
+				let saliency = autoState.currentConfig.saliency;
+				saliency.boundingShapes = [];
+
+				let rectangles = saliencyInfo.rectangles.axisAligned;
+				for( let rectangle of rectangles ){
+					// rectangle is object with properties h, w, x, y
+					// we want to generate 4 coordinates: top left, top right, bottom right, bottom left 
+					// for canvas drawing, top left is 0,0 (so inverted y-axis)
+					
+					let points = [];
+					let enlargeBy = 0.25; // 25%
+
+					if( enlargeBy == 0 ){
+						points.push( [rectangle.x, rectangle.y] );
+						points.push( [rectangle.x + rectangle.w, rectangle.y] );
+						points.push( [rectangle.x + rectangle.w, rectangle.y + rectangle.h] );
+						points.push( [rectangle.x, rectangle.y + rectangle.h] );
+					}
+					else{
+						// our python script is a bit too aggressive in generating bounding rects
+						// so we might want to enlarge the salient regions a bit
+						// e.g., if 20%, enlargeBy is 0.2
+						// do left -20% of the width, right + 20%
+						
+						points.push( [rectangle.x - (rectangle.w * enlargeBy), rectangle.y - (rectangle.h * enlargeBy)] );
+						points.push( [rectangle.x + (rectangle.w * ( 1 + enlargeBy)), rectangle.y - (rectangle.h * enlargeBy)] );
+						points.push( [rectangle.x + (rectangle.w * ( 1 + enlargeBy)), rectangle.y + (rectangle.h * (1 + enlargeBy))] );
+						points.push( [rectangle.x - (rectangle.w * enlargeBy), rectangle.y + (rectangle.h * (1 + enlargeBy))] );
+					}
+				
+					saliency.boundingShapes.push( { "points": points} );
+				}
+
+				// set initial bias 
+				saliency.bias = 0; // just in case if the update callback doesn't have initialization logic for step 0
+				saliency.updateBias( saliency, 0, autoState.currentConfig.steps );
+				
+				document.getElementById("debugPhase1Canvas").style.display = "block";
+				document.getElementById("debugMutationCanvas").style.display = autoState.currentConfig.DEBUGGING ? "block" : "none";
+			
+				//let cfg = ui.getConfig();
+			
+				console.log("CONFIG", JSON.stringify(autoState.currentConfig));
+			
+			
+			
+				processURL( autoState.currentURL, autoState.currentConfig );
+				
+			});
+		}
+	)
+	.catch(function(err) {
+		console.log('Fetching saliency Error :-S', err);
+	});
+}
+
+
 
 
 
@@ -1262,6 +1546,8 @@ function init$1() {
 	init();
 	syncType();
 	document.querySelector("form").addEventListener("submit", onSubmit);
+
+	document.querySelector("#automatedStart").addEventListener("click", onAutomatedStart);
 }
 
 function syncType() {

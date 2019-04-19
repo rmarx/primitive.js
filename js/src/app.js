@@ -1,4 +1,5 @@
 import * as ui from "./ui.js";
+import autoConfig from "./automatedConfig.js";
 import Canvas from "./canvas.js";
 import Optimizer from "./optimizer.js";
 import {Polygon} from "./shape.js";
@@ -21,8 +22,6 @@ let steps;
 
 function go(originalCanvas, cfg) {
     ui.lock();
-    
-    console.log("ROBIN SAYS GOOOO!");
 
 	nodes.steps.innerHTML = "";
 	nodes.original.innerHTML = "";
@@ -46,9 +45,13 @@ function go(originalCanvas, cfg) {
 	nodes.raster.appendChild(rasterCanvas.node);
 
 	let svgCanvas = Canvas.empty(cfg, true);
-	svgCanvas.setAttribute("width", cfg2.width);
-	svgCanvas.setAttribute("height", cfg2.height);
-    nodes.vector.appendChild(svgCanvas);
+	//svgCanvas.setAttribute("width", cfg2.width); // screen-filling svg by default
+	//svgCanvas.setAttribute("height", cfg2.height); // screen-filling svg by default
+	nodes.vector.appendChild(svgCanvas);
+	
+	// svg is not by default filling up the div, as is the case with canvas 
+	document.getElementById("vector").style.width = cfg2.width + "px";
+	document.getElementById("vector").style.height = cfg2.height + "px";
     
     let debugPhase1Canvas = Canvas.empty(cfg2, false);
 	debugPhase1Canvas.ctx.scale(cfg.scale, cfg.scale);
@@ -67,22 +70,36 @@ function go(originalCanvas, cfg) {
 			svgCanvas.appendChild(step.toSVG());
 			let percent = (100*(1-step.distance)).toFixed(2);
 			nodes.vectorText.value = serializer.serializeToString(svgCanvas);
-			nodes.steps.innerHTML = `(${++steps} of ${cfg.steps}, ${percent}% similar)`;
+
+			let configName = "";
+			if( autoState && autoState.currentConfig && autoState.currentConfig.name )
+				configName = "" + autoState.currentConfig.name + ", "
+
+			if( cfg.saliency )
+				nodes.steps.innerHTML = `(${configName}${++steps} of ${cfg.steps}, ${percent}% similar, ${~~(cfg.saliency.bias*100)}% bias to salient regions)`;
+			else
+				nodes.steps.innerHTML = `(${++steps} of ${cfg.steps}, ${percent}% similar)`;
         }
         else
             console.error("app:onStep : no step given... is this really an error though? ", step);
     }
     
 	optimizer.onDebugPhase1Step = (step, referenceCanvas) => {
+		if( !cfg.DEBUGGING )
+			return;
+
 		if (step) {
-            debugPhase1Canvas.replaceWithOther( referenceCanvas );
+			debugPhase1Canvas.replaceWithOther( referenceCanvas );
 			debugPhase1Canvas.drawStep(step);
-        }
-        else
-            console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
+		}
+		else
+			console.error("app:onDebugMutationStep : no step given... is this really an error though? ", step);
 	}
 
 	optimizer.onDebugMutationStep = (step, referenceCanvas) => {
+		if( !cfg.DEBUGGING )
+			return;
+
 		if (step) {
             debugMutationCanvas.replaceWithOther( referenceCanvas );
 			debugMutationCanvas.drawStep(step);
@@ -97,22 +114,51 @@ function go(originalCanvas, cfg) {
 
 	optimizer.onSaliencyKnown = (saliencyPolygons) => {
 
-		for( let polygon of saliencyPolygons ){
-			let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
-			p.points = polygon.points;
-			p.computeBbox();
-			debugMutationCanvas.ctx.fillStyle = "#FF0000";
+		if( !cfg.DEBUGGING ){
+			debugPhase1Canvas.replaceWithOther( originalCanvas );
+			for( let polygon of saliencyPolygons ){
+				let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
+				p.points = polygon.points;
+				p.computeBbox();
+				debugPhase1Canvas.ctx.fillStyle = "#FF0000";
+				debugPhase1Canvas.ctx.globalAlpha = 0.5;
 
-			p.render( debugMutationCanvas.ctx );
+				p.render( debugPhase1Canvas.ctx );
+			}
+		}
+		else{
+			for( let polygon of saliencyPolygons ){
+				let p = new Polygon(2000, 2000, saliencyPolygons, polygon.points.length);
+				p.points = polygon.points;
+				p.computeBbox();
+				debugMutationCanvas.ctx.fillStyle = "#FF0000";
+
+				p.render( debugMutationCanvas.ctx );
+			}
 		}
 
 	}
 
 	optimizer.onDone = () => {
-		console.log("Done, putting it in localStorage!");
 
-		localStorage.setItem('robinTestdeDingen', document.getElementById("vector-text").value);
+		if( autoState.currentURLindex != -1 ){ // if -1, it means we're not doing automated processing 
+			console.log("Done, putting it in localStorage!");
 
+			let url = autoState.currentURL;
+			url = url.substring(url.lastIndexOf('/')+1);
+			url = url.replace(".jpeg", ".svg");
+			url = url.replace(".jpg", ".svg");
+			url = url.replace(".png", ".svg");
+
+			// want the config name at the END so windows explorer correctly sorts the same images together
+			url = url.replace(".svg", "_" + autoState.currentConfig.name + ".svg");
+
+			localStorage.setItem("automatedSVG_" + url, document.getElementById("vector-text").value);
+
+			processNextURL();
+		}
+
+		/*
 		let zip = new JSZip();
 
 		let contents = localStorage.getItem("robinTestdeDingen");
@@ -129,11 +175,28 @@ function go(originalCanvas, cfg) {
 			document.body.removeChild(link);
 			
 		});
+		*/
 	}
 
 	optimizer.start();
 
 	document.documentElement.scrollTop = document.documentElement.scrollHeight;
+}
+
+function processURL( url, cfg ){
+	Canvas.original(url, cfg).then(
+		(originalCanvas) => {
+			// cfg.scale is only now known
+			if( cfg.saliency ){
+				for( let shape of cfg.saliency.boundingShapes ){
+					for( let point of shape.points ){
+						point[0] = point[0] / cfg.computeScale; // x
+						point[1] = point[1] / cfg.computeScale; // y
+					}
+				}
+			}
+			return go(originalCanvas, cfg);
+		});
 }
 
 function onSubmit(e) {
@@ -152,22 +215,152 @@ function onSubmit(e) {
 
 	let cfg = ui.getConfig();
 
-
-
-	Canvas.original(url, cfg).then(
-		(originalCanvas) => {
-			// cfg.scale is only now known
-			if( cfg.saliency ){
-				for( let shape of cfg.saliency.boundingShapes ){
-					for( let point of shape.points ){
-						point[0] = point[0] / cfg.computeScale; // x
-						point[1] = point[1] / cfg.computeScale; // y
-					}
-				}
-			}
-			return go(originalCanvas, cfg);
-		});
+	processURL( url, cfg );
 }
+
+function onAutomatedStart(e){
+	e.preventDefault();
+
+	localStorage.clear();
+
+	processNextURL();
+}
+
+let autoState = {};
+autoState.currentURLindex = -1;
+autoState.currentURL = "";
+autoState.currentConfigIndex = 0;
+autoState.currentConfig = autoConfig.configs[autoState.currentConfigIndex];
+
+function processNextURL(){
+
+	++autoState.currentURLindex;
+
+	// we do all images in 1 config after another, then switch to the next config 
+	if( autoState.currentURLindex >= autoConfig.urls.length ){
+		if( autoState.currentConfigIndex < autoConfig.configs.length - 1 ){
+			autoState.currentConfigIndex += 1;
+			autoState.currentConfig = autoConfig.configs[ autoState.currentConfigIndex ];
+
+			autoState.currentURLindex = 0;
+		}
+		else{
+			autoState.currentConfigIndex += 1; // we would reach the length, so we're done
+			// config limit has also been reached, we will go into the next if-test which ends the process
+		}
+	}
+
+	if( autoState.currentURLindex >= autoConfig.urls.length && 
+		autoState.currentConfigIndex >= autoConfig.configs.length ){
+		console.log("Automated url processing done. Processed " + autoConfig.urls.length + " images, "+ autoConfig.configs.length +" times.");
+
+		let zip = new JSZip();
+		zip.file("config.json", JSON.stringify(autoConfig.configs, null, 4));
+
+		let storedKeys = Object.keys( localStorage );
+		let fileCount = 0;
+		for( let key of storedKeys ){
+			if( key.indexOf("automatedSVG_") < 0 )
+				continue;
+
+			zip.file( key.replace("automatedSVG_", ""), localStorage.getItem(key) );
+			++fileCount;
+		}
+
+		if( fileCount > 0 ){
+
+			zip.generateAsync({type:"blob"}).then(function (blob) {
+				
+				let link = document.createElement('a');
+				link.href = window.URL.createObjectURL( blob );
+				link.download = "automatedSVGs.zip";
+
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				
+			});
+		}
+		else{
+			console.error("Automated processing done, but nothing was saved in localstorage... why did you even do it then?");
+		}
+
+		return;
+	}
+
+	autoState.currentURL = autoConfig.urls[autoState.currentURLindex];
+
+	let saliencyURL = autoState.currentURL.replace("jpeg", "json");
+	saliencyURL = saliencyURL.replace("jpg", "json");
+	saliencyURL = saliencyURL.replace("png", "json");
+
+	fetch(saliencyURL).then(
+		function(response) {
+			if (response.status !== 200) {
+				console.log('Fetching saliency: Looks like there was a problem. Status Code: ' + response.status);
+				return;
+			}
+
+			// Examine the text in the response
+			response.json().then(function(saliencyInfo) {
+
+				let saliency = autoState.currentConfig.saliency;
+				saliency.boundingShapes = [];
+
+				let rectangles = saliencyInfo.rectangles.axisAligned;
+				for( let rectangle of rectangles ){
+					// rectangle is object with properties h, w, x, y
+					// we want to generate 4 coordinates: top left, top right, bottom right, bottom left 
+					// for canvas drawing, top left is 0,0 (so inverted y-axis)
+					
+					let points = [];
+					let enlargeBy = 0.25; // 25%
+
+					if( enlargeBy == 0 ){
+						points.push( [rectangle.x, rectangle.y] );
+						points.push( [rectangle.x + rectangle.w, rectangle.y] );
+						points.push( [rectangle.x + rectangle.w, rectangle.y + rectangle.h] );
+						points.push( [rectangle.x, rectangle.y + rectangle.h] );
+					}
+					else{
+						// our python script is a bit too aggressive in generating bounding rects
+						// so we might want to enlarge the salient regions a bit
+						// e.g., if 20%, enlargeBy is 0.2
+						// do left -20% of the width, right + 20%
+						
+						points.push( [rectangle.x - (rectangle.w * enlargeBy), rectangle.y - (rectangle.h * enlargeBy)] );
+						points.push( [rectangle.x + (rectangle.w * ( 1 + enlargeBy)), rectangle.y - (rectangle.h * enlargeBy)] );
+						points.push( [rectangle.x + (rectangle.w * ( 1 + enlargeBy)), rectangle.y + (rectangle.h * (1 + enlargeBy))] );
+						points.push( [rectangle.x - (rectangle.w * enlargeBy), rectangle.y + (rectangle.h * (1 + enlargeBy))] );
+					}
+				
+					saliency.boundingShapes.push( { "points": points} );
+				}
+
+				// set initial bias 
+				saliency.bias = 0; // just in case if the update callback doesn't have initialization logic for step 0
+				saliency.updateBias( saliency, 0, autoState.currentConfig.steps );
+				
+				document.getElementById("debugPhase1Canvas").style.display = "block";
+				document.getElementById("debugMutationCanvas").style.display = autoState.currentConfig.DEBUGGING ? "block" : "none";
+			
+				//let cfg = ui.getConfig();
+			
+				console.log("CONFIG", JSON.stringify(autoState.currentConfig));
+			
+			
+			
+				processURL( autoState.currentURL, autoState.currentConfig );
+				
+			});
+		}
+	)
+	.catch(function(err) {
+		console.log('Fetching saliency Error :-S', err);
+	});
+}
+
+
 
 
 
@@ -178,6 +371,8 @@ function init() {
 	ui.init();
 	syncType();
 	document.querySelector("form").addEventListener("submit", onSubmit);
+
+	document.querySelector("#automatedStart").addEventListener("click", onAutomatedStart);
 }
 
 function syncType() {

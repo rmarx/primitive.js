@@ -25,7 +25,7 @@ export default class Optimizer {
 	}
 
 	start() {
-        if( this.DEBUGGING && this.cfg.saliency && this.cfg.saliency.boundingShapes){
+        if( /*this.DEBUGGING &&*/ this.cfg.saliency && this.cfg.saliency.boundingShapes){
             this.onSaliencyKnown( this.cfg.saliency.boundingShapes );
         }
         
@@ -64,18 +64,18 @@ export default class Optimizer {
 
 	_continue() {
 		if (this._steps < this.cfg.steps) {
-            // initial bias can be set via UI, so only change at fixed intervals here
-            // normally:
-            // 0 - 5%: totally random (bias = 0)
-            // 5 - 75% : 95% from salient
-            // 75% - 100% : 100% from salient
-            if( this._steps == ~~(0.05 * this.cfg.steps) ){
-                this.cfg.saliency.bias = 0.975;
-                console.log("Updating saliency bias after 10% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
-            }
-            else if( this._steps == ~~(0.75 * this.cfg.steps) ){
-                this.cfg.saliency.bias = 1;
-                console.log("Updating saliency bias after 90% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+            if( this.cfg.saliency ){
+                /*
+                if( this._steps == ~~(0.1 * this.cfg.steps) ){
+                    this.cfg.saliency.bias = 0.975;
+                    console.log("Updating saliency bias after 10% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+                }
+                else if( this._steps == ~~(0.75 * this.cfg.steps) ){
+                    this.cfg.saliency.bias = 1;
+                    console.log("Updating saliency bias after 90% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
+                }
+                */
+               this.cfg.saliency.updateBias( this.cfg.saliency, this._steps, this.cfg.steps );
             }
 
 			setTimeout(() => this._addShape(), 0);//10);
