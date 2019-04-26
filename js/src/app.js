@@ -75,7 +75,7 @@ function go(originalCanvas, cfg) {
 			if( autoState && autoState.currentConfig && autoState.currentConfig.name )
 				configName = "" + autoState.currentConfig.name + ", "
 
-			if( cfg.saliency )
+			if( cfg.saliency && cfg.saliency.drawSalientRegions )
 				nodes.steps.innerHTML = `(${configName}${++steps} of ${cfg.steps}, ${percent}% similar, ${~~(cfg.saliency.bias*100)}% bias to salient regions)`;
 			else
 				nodes.steps.innerHTML = `(${++steps} of ${cfg.steps}, ${percent}% similar)`;
@@ -113,6 +113,11 @@ function go(originalCanvas, cfg) {
 	}
 
 	optimizer.onSaliencyKnown = (saliencyPolygons) => {
+
+		// so we can make videos without salient regions
+		let drawRegions = (cfg.saliency.drawSalientRegions !== undefined) ? cfg.saliency.drawSalientRegions : true;
+		if( !drawRegions )
+			return;
 
 		if( !cfg.DEBUGGING ){
 			debugPhase1Canvas.replaceWithOther( originalCanvas );
@@ -314,7 +319,7 @@ function processNextURL(){
 					// for canvas drawing, top left is 0,0 (so inverted y-axis)
 					
 					let points = [];
-					let enlargeBy = 0.25; // 25%
+					let enlargeBy = saliency.enlargeBy ? saliency.enlargeBy : 0; //0;//0.25; // 25%
 
 					if( enlargeBy == 0 ){
 						points.push( [rectangle.x, rectangle.y] );
@@ -338,10 +343,10 @@ function processNextURL(){
 				}
 
 				// set initial bias 
-				saliency.bias = 0; // just in case if the update callback doesn't have initialization logic for step 0
-				saliency.updateBias( saliency, 0, autoState.currentConfig.steps );
+				saliency.bias = 0; // just in case if the tweak callback doesn't have initialization logic for step 0
+				saliency.tweakParameters( autoState.currentConfig, 0, autoState.currentConfig.steps );
 				
-				document.getElementById("debugPhase1Canvas").style.display = "block";
+				document.getElementById("debugPhase1Canvas").style.display = (autoState.currentConfig.DEBUGGING || autoState.currentConfig.saliency.drawSalientRegions) ? "block" : "none";
 				document.getElementById("debugMutationCanvas").style.display = autoState.currentConfig.DEBUGGING ? "block" : "none";
 			
 				//let cfg = ui.getConfig();

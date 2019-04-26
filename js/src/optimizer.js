@@ -75,7 +75,8 @@ export default class Optimizer {
                     console.log("Updating saliency bias after 90% of steps ", this._steps, this.cfg.steps, this.cfg.saliency.bias);
                 }
                 */
-               this.cfg.saliency.updateBias( this.cfg.saliency, this._steps, this.cfg.steps );
+                if( this.cfg.saliency.tweakParameters )
+                    this.cfg.saliency.tweakParameters( this.cfg, this._steps, this.cfg.steps );
             }
 
 			setTimeout(() => this._addShape(), 0);//10);
