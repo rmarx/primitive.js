@@ -1,31 +1,23 @@
-# primitive.js
+# primitive.js with support for saliency-driven generation
 
-A JavaScript re-creation of the [primitive.lol](http://primitive.lol/) application.
+This is a fork of the original [Primitive.js project](https://ondras.github.io/primitive.js/).
+That is in turn a port to JavaScript of the original [primitive.lol](http://primitive.lol/) application.
 
-## How does it look?
+Our custom version adds support for saliency-driven generation of the SVG output (as opposed to fully random generation).
+This is a very early version of the software, mainly to support an early report on this work.
 
-Check out the [Masterpieces](https://cielitolindo.de/albums/masterpieces/) gallery for several cool samples. There is also a dedicated [Electron-based port](https://github.com/cielito-lindo-productions/primitive.nextgen) that works as a regular desktop application.
-
-## Try it now!
-
-[At a dedicated demo page](https://ondras.github.io/primitive.js/)
+For more details and example input images, see [https://placeholders.edm.uhasselt.be](https://placeholders.edm.uhasselt.be).
 
 ## Building
 
 Written in client-side JavaScript, uses Rollup for JS bundling and LESS for CSS pre-processing.
 
-  1. `git clone git@github.com:ondras/primitive.js.git && cd primitive.js`
-  1. `npm install`
-  1. `npm start`
-
-## About the algorithm
-
-Most of the ideas are shared with the original app, described at https://github.com/fogleman/primitive/. Rasterization is done via HTML5 <canvas>, which is very flexible but prohibits reasonable parallelization. Web Worker support is [available](js/src/workerPool.js) but not used at all, as it does not currently bring any performance improvement. This might change in the future.
+  1. `git clone git@github.com:rmarx/primitive.js.git && cd primitive.js`
+  2. `npm install`
+  3. `npm start`
+  4. either: open the index.html directly (if you host/upload the images somewhere else yourself)
+  5. or: do `python -m SimpleHTTPServer 8080` (in the directory containing index.html) and go to http://localhost:8080
 
 ## License
 
 [MIT](license.txt)
-
-## Contributing
-
-There are no major missing features nor a roadmap. The UI needs some polishing w.r.t. UX. If you think your feature/bugfix/contribution might be worthwhile, please ask before diving into the code. Performance improvements (measurable) are welcome. 
