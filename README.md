@@ -8,6 +8,13 @@ This is a very early version of the software, mainly to support an early report 
 
 For more details and example input images, see [https://placeholders.edm.uhasselt.be](https://placeholders.edm.uhasselt.be).
 
+| Fully Random             |  Saliency Driven |
+:-------------------------:|:-------------------------:
+![](https://placeholders.edm.uhasselt.be/images/mona_loose.png)  |  ![](https://placeholders.edm.uhasselt.be/images/mona_strict.png)
+![](https://placeholders.edm.uhasselt.be/images/1_loose.png)  |  ![](https://placeholders.edm.uhasselt.be/images/1_strict.png)
+![](https://placeholders.edm.uhasselt.be/images/2_loose.png)  |  ![](https://placeholders.edm.uhasselt.be/images/2_strict.png)
+![](https://placeholders.edm.uhasselt.be/images/3_loose.png)  |  ![](https://placeholders.edm.uhasselt.be/images/3_strict.png)
+
 ## Building
 
 Written in client-side JavaScript, uses Rollup for JS bundling and LESS for CSS pre-processing.
